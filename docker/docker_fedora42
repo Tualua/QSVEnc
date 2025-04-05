@@ -2,8 +2,12 @@ FROM fedora:42
 
 ARG LOCAL_USER_ID=1000 \
     LOCAL_GROUP_ID=1000
+    ARG INTEL_REPO_VER=9.5
 
 RUN dnf update -y \
+    && dnf -y install curl \
+    && rpm --import https://repositories.intel.com/gpu/intel-graphics.key \
+    && curl -L https://repositories.intel.com/gpu/rhel/${INTEL_REPO_VER}/unified/intel-gpu-${INTEL_REPO_VER}.repo -o /etc/yum.repos.d/intel-gpu-${INTEL_REPO_VER}.repo \
     && dnf install -y \
     https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
     https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm \
@@ -14,7 +18,8 @@ RUN dnf update -y \
       gcc-c++ \
       cmake \
       wget \
-      curl \
+      intel-opencl intel-media libmfxgen1 libvpl2 level-zero intel-level-zero-gpu mesa-dri-drivers mesa-vulkan-drivers mesa-vdpau-drivers libdrm mesa-libEGL mesa-libgbm mesa-libGL mesa-libxatracker libvpl-tools intel-metrics-discovery intel-metrics-library intel-igc-core intel-igc-cm libva libva-utils intel-gmmlib libmetee intel-gsc intel-ocloc \
+      intel-igc-opencl-devel level-zero-devel intel-gsc-devel libmetee-devel \
       libva-devel \
       libX11-devel \
       libdrm-devel \
