@@ -22,6 +22,8 @@ jobs:
             pkgtype: deb
           - dockerimg: fedora37
             pkgtype: rpm
+          - dockerimg: fedora42
+            pkgtype: rpm
 
     env:
       DOCKER_FILE:  docker/docker_${{ matrix.dockerimg }}
