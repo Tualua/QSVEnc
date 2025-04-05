@@ -14,13 +14,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dockerimg: ubuntu2004
-            pkgtype: deb
-          - dockerimg: ubuntu2204
-            pkgtype: deb
-          - dockerimg: ubuntu2404
-            pkgtype: deb
+          # - dockerimg: ubuntu2004
+          #   pkgtype: deb
+          # - dockerimg: ubuntu2204
+          #   pkgtype: deb
+          # - dockerimg: ubuntu2404
+          #   pkgtype: deb
           - dockerimg: fedora37
+            pkgtype: rpm
+          - dockerimg: fedora42
             pkgtype: rpm
 
     env:
