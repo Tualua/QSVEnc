@@ -24,6 +24,7 @@ RUN userdel ubuntu \
       libva-dev \
       libdrm-dev \
       build-essential \
+      opencl-headers \
       libavcodec60 \
       libavcodec-dev \
       libavutil58 \
