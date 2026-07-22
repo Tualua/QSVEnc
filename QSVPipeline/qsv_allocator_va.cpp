@@ -339,6 +339,25 @@ mfxStatus QSVAllocatorVA::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAlloc
                 format = VA_RT_FORMAT_RGBP;
             }
 
+            // Mirror ffmpeg hwcontext_vaapi: tag every video surface with a role-derived usage
+            // hint so iHD picks correct placement/tiling and does not alias BOs across
+            // concurrent processes. qsvencc set hints only for VP8/JPEG. attrib[] has room.
+            if ((va_fourcc == VA_FOURCC_NV12 || va_fourcc == VA_FOURCC_P010) && attrCnt < 2)
+            {
+                int usageHint = VA_SURFACE_ATTRIB_USAGE_HINT_GENERIC;
+                if (request->Type & (MFX_MEMTYPE_FROM_ENCODE | MFX_MEMTYPE_FROM_ENC)) usageHint |= VA_SURFACE_ATTRIB_USAGE_HINT_ENCODER;
+                if (request->Type & MFX_MEMTYPE_FROM_DECODE)                          usageHint |= VA_SURFACE_ATTRIB_USAGE_HINT_DECODER;
+                if (request->Type & MFX_MEMTYPE_FROM_VPPIN)                           usageHint |= VA_SURFACE_ATTRIB_USAGE_HINT_VPP_READ;
+                if (request->Type & MFX_MEMTYPE_FROM_VPPOUT)                          usageHint |= VA_SURFACE_ATTRIB_USAGE_HINT_VPP_WRITE;
+                if (usageHint != VA_SURFACE_ATTRIB_USAGE_HINT_GENERIC)
+                {
+                    attrib[attrCnt].type            = (VASurfaceAttribType)VASurfaceAttribUsageHint;
+                    attrib[attrCnt].flags           = VA_SURFACE_ATTRIB_SETTABLE;
+                    attrib[attrCnt].value.type      = VAGenericValueTypeInteger;
+                    attrib[attrCnt++].value.value.i = usageHint;
+                }
+            }
+
             va_res = m_libva->vaCreateSurfaces(m_dpy,
                                     format,
                                     request->Info.Width, request->Info.Height,
