@@ -339,6 +339,19 @@ mfxStatus QSVAllocatorVA::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAlloc
                 format = VA_RT_FORMAT_RGBP;
             }
 
+            // ffmpeg's hwcontext_vaapi tags encode surfaces with USAGE_HINT_ENCODER so iHD
+            // selects encoder-correct placement/tiling; qsvencc set a hint only for VP8/JPEG.
+            // Missing hint on P010 encode/reference surfaces lets iHD alias 10-bit reference
+            // BOs across concurrent processes. attrib[] has a free slot here (attrCnt==1).
+            if (va_fourcc == VA_FOURCC_P010 &&
+                (request->Type & (MFX_MEMTYPE_FROM_ENCODE | MFX_MEMTYPE_FROM_ENC)))
+            {
+                attrib[attrCnt].type            = (VASurfaceAttribType)VASurfaceAttribUsageHint;
+                attrib[attrCnt].flags           = VA_SURFACE_ATTRIB_SETTABLE;
+                attrib[attrCnt].value.type      = VAGenericValueTypeInteger;
+                attrib[attrCnt++].value.value.i = VA_SURFACE_ATTRIB_USAGE_HINT_ENCODER;
+            }
+
             va_res = m_libva->vaCreateSurfaces(m_dpy,
                                     format,
                                     request->Info.Width, request->Info.Height,
