@@ -243,6 +243,10 @@ mfxStatus QSVAllocatorVA::ReallocImpl(mfxMemId mid, const mfxFrameInfo *info, mf
     {
         format = VA_RT_FORMAT_YUV420;
     }
+    else if (va_fourcc == VA_FOURCC_P010)
+    {
+        format = VA_RT_FORMAT_YUV420_10;
+    }
 
     va_res = m_libva->vaCreateSurfaces(m_dpy,
         format,
@@ -325,6 +329,10 @@ mfxStatus QSVAllocatorVA::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAlloc
             else if (va_fourcc == VA_FOURCC_NV12)
             {
                 format = VA_RT_FORMAT_YUV420;
+            }
+            else if (va_fourcc == VA_FOURCC_P010)
+            {
+                format = VA_RT_FORMAT_YUV420_10;
             }
             else if ((va_fourcc == VA_FOURCC_UYVY) || (va_fourcc == VA_FOURCC_YUY2))
             {
