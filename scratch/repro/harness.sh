@@ -1228,6 +1228,206 @@ cmd_run_batch() {
 }
 
 # ---------------------------------------------------------------------------
+# print_batch_summary_vaapi -- read report_vaapi.csv and print the
+# av1_vaapi-specific triangulation report (Phase 2 DIAG-02): raw X/N_actual +
+# 95% Wilson CI for the primary hotspot (reusing wilson_ci()/scene_stats()
+# verbatim from print_batch_summary, same 30 dB threshold, same OK-only
+# denominator), confirmatory fractions for the other two hotspots, the paired
+# av1_qsv immune control result (D-11), the D-02 triad caveat read from
+# vaapi_probe.txt (degrades to an explicit UNAVAILABLE line, never a silent
+# blank, if the probe file is missing/empty -- T-02-15), a minimum-valid-
+# iteration floor emitting a DEGRADED BATCH warning below ceil(0.85 x
+# n_requested) valid iterations, the D-07/D-08 gated-escalation verdict
+# (positive -> stop; 0/N + full triad -> escalate to N~60; 0/N + partial/
+# unknown triad -> do NOT escalate), and the explicit roadmap SC#2
+# interpretation (partial-triad clean branch states "immunity NOT proven",
+# D-03). Also saved to summary_vaapi.txt.
+# ---------------------------------------------------------------------------
+print_batch_summary_vaapi() {
+  local report="$1" n_requested="$2" n_actual="$3"
+  REPORT_CSV="$report" N_REQUESTED="$n_requested" N_ACTUAL="$n_actual" \
+    VAAPI_PROBE_FILE="$W/vaapi_probe.txt" python3 <<'PYEOF' | tee "$W/summary_vaapi.txt"
+import csv, os, math, statistics
+
+report_csv = os.environ["REPORT_CSV"]
+n_requested = int(os.environ["N_REQUESTED"])
+n_actual = int(os.environ["N_ACTUAL"])
+probe_file = os.environ["VAAPI_PROBE_FILE"]
+
+rows = []
+with open(report_csv, newline="") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        rows.append(row)
+
+def wilson_ci(x, n, z=1.96):
+    if n == 0:
+        return (None, None)
+    phat = x / n
+    denom = 1 + z * z / n
+    center = (phat + z * z / (2 * n)) / denom
+    half = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
+
+def scene_stats(scene):
+    scene_rows = [r for r in rows if r["scene"] == str(scene)]
+    ok_rows = [r for r in scene_rows if r["status"] == "OK"]
+    corrupt_rows = [r for r in ok_rows if r["corrupt"] == "1"]
+    n_ok = len(ok_rows)
+    x = len(corrupt_rows)
+    lo, hi = wilson_ci(x, n_ok) if n_ok else (None, None)
+    psnr_values = []
+    for r in corrupt_rows:
+        try:
+            psnr_values.append(float(r["psnr_db"]))
+        except ValueError:
+            pass
+    return dict(n_ok=n_ok, x=x, lo=lo, hi=hi, psnr_values=psnr_values)
+
+s923 = scene_stats(923)
+s928 = scene_stats(928)
+s1129 = scene_stats(1129)
+
+status_counts = {}
+for r in rows:
+    if r["scene"] == "923":
+        status_counts[r["status"]] = status_counts.get(r["status"], 0) + 1
+
+control_invalid = status_counts.get("CONTROL_INVALID", 0)
+exec_failure = status_counts.get("EXEC_FAILURE", 0)
+timeout_n = status_counts.get("TIMEOUT", 0)
+measure_failure = status_counts.get("MEASURE_FAILURE", 0)
+ok_n = status_counts.get("OK", 0)
+
+# D-02 triad caveat: read vaapi_probe.txt. A missing/empty file (workdir
+# cleaned or probe never run) degrades to an explicit UNAVAILABLE line --
+# never a silent blank and never an error (T-02-15).
+reorder_verdict = "UNAVAILABLE"
+p010_verdict = "UNAVAILABLE"
+hwdecode_verdict = "UNAVAILABLE"
+triad_line = "UNAVAILABLE"
+probe_available = False
+try:
+    with open(probe_file) as f:
+        content = f.read()
+    if content.strip():
+        probe_available = True
+        for line in content.splitlines():
+            if line.startswith("reorder:"):
+                reorder_verdict = line.split(":", 1)[1].strip()
+            elif line.startswith("p010:"):
+                p010_verdict = line.split(":", 1)[1].strip()
+            elif line.startswith("hw_decode:"):
+                hwdecode_verdict = line.split(":", 1)[1].strip()
+            elif line.startswith("triad:"):
+                triad_line = line.split(":", 1)[1].strip()
+except OSError:
+    probe_available = False
+
+full_triad = probe_available and reorder_verdict == "ACTIVE" and p010_verdict == "ACTIVE" and hwdecode_verdict == "ACTIVE"
+
+# Minimum-valid-iteration floor (T-02-15): ceil(0.85 * n_requested), e.g. 17
+# of 20. Below this floor, emit a loud DEGRADED BATCH warning in addition to
+# (never instead of) the existing OK-only denominator accounting.
+valid_floor = math.ceil(0.85 * n_requested)
+degraded = n_actual < valid_floor
+
+total_corrupt = s923["x"] + s928["x"] + s1129["x"]
+
+print("=" * 78)
+print("av1_vaapi concurrent-encode triangulation -- detection batch report (DIAG-02)")
+print("=" * 78)
+print()
+print(f"N_requested: {n_requested}")
+print(f"N_actual:    {n_actual}")
+print(f"  OK: {ok_n}  EXEC_FAILURE: {exec_failure}  TIMEOUT: {timeout_n}  MEASURE_FAILURE: {measure_failure}  CONTROL_INVALID: {control_invalid}")
+print(f"  (excluded from corruption-fraction denominator: {exec_failure + timeout_n + measure_failure + control_invalid})")
+print()
+print("-- Primary hotspot: scene 923 / offset 299 (vs av1_vaapi self-reference) --")
+if s923["n_ok"] > 0:
+    frac = s923["x"] / s923["n_ok"]
+    print(f"  corruption fraction: {s923['x']}/{s923['n_ok']} ({frac:.1%})")
+    print(f"  95% Wilson CI: [{s923['lo']:.3f}, {s923['hi']:.3f}]")
+else:
+    print("  no OK (control-clean) iterations to report")
+if s923["psnr_values"]:
+    mean = statistics.mean(s923["psnr_values"])
+    stdev = statistics.pstdev(s923["psnr_values"]) if len(s923["psnr_values"]) > 1 else 0.0
+    stable = stdev < 2.0
+    print(f"  observed corrupt-frame PSNR values (dB): {[round(v, 2) for v in s923['psnr_values']]}")
+    print(f"  mean={mean:.2f} dB, stddev={stdev:.2f} dB, signature_stable_across_iterations={stable}")
+else:
+    print("  no corrupt frames observed at this hotspot this batch")
+print()
+print("-- Confirmatory hotspot: scene 928 / offset 96 --")
+if s928["n_ok"] > 0:
+    frac = s928["x"] / s928["n_ok"]
+    print(f"  corruption fraction: {s928['x']}/{s928['n_ok']} ({frac:.1%})")
+else:
+    print("  no OK iterations to report")
+print()
+print("-- Confirmatory hotspot: scene 1129 / offset 299 --")
+if s1129["n_ok"] > 0:
+    frac = s1129["x"] / s1129["n_ok"]
+    print(f"  corruption fraction: {s1129['x']}/{s1129['n_ok']} ({frac:.1%})")
+else:
+    print("  no OK iterations to report")
+print()
+print("-- Paired immune control (D-11) --")
+print(f"  ffmpeg av1_qsv control non-clean/invalidated iterations: {control_invalid}/{n_actual}")
+print(f"  (expected 0/{n_actual} -- a non-zero count here means the control itself was")
+print("   compromised for that iteration and it was excluded from the av1_vaapi finding)")
+print()
+print("-- av1_vaapi triad caveat (D-02/D-03) --")
+if not probe_available:
+    print("  triad caveat: UNAVAILABLE - probe not run or file missing")
+else:
+    print(f"  reorder (B-frame leg):        {reorder_verdict}")
+    print(f"  p010 (10-bit surfaces):       {p010_verdict}")
+    print(f"  hw_decode (VA video-memory):  {hwdecode_verdict}")
+    print(f"  triad verdict: {triad_line}")
+    print("  (reorder caveat is narrow: no display/decode reordering observed via PTS/DTS;")
+    print("   this is NOT a claim of zero reference-surface-lifetime effect -- 02-RESEARCH.md Open Question #1)")
+print(f"  full_triad = {full_triad}")
+print()
+print("-- Minimum-valid-iteration floor --")
+print(f"  valid iterations: {n_actual}/{n_requested} (floor: {valid_floor} = ceil(0.85 x {n_requested}))")
+if degraded:
+    print(f"  DEGRADED BATCH - detection power reduced (only {n_actual} of {n_requested} iterations valid); re-run recommended")
+else:
+    print("  floor met -- detection power at nominal N")
+print()
+print("-- Gated escalation (D-07/D-08) --")
+if total_corrupt >= 1:
+    print(f"  av1_vaapi REPRODUCES corruption; detection-grade, STOP (no N~60 once positive)")
+elif full_triad:
+    print(f"  0/{n_actual} with FULL triad -> escalate to validation-N~60 (rule-of-three) to earn a clean/immune claim")
+    print("  operator should run: run-batch-vaapi 60")
+else:
+    print(f"  0/{n_actual} with PARTIAL/UNKNOWN triad -> do NOT escalate; 60 runs on a broken triad prove nothing")
+    print("  report detection-grade PARTIAL-TRIAD only")
+print()
+print("-- Interpretation (roadmap SC#2) --")
+if total_corrupt >= 1:
+    print("  av1_vaapi CORRUPT: broadens the suspected fault beyond qsvencc's own oneVPL")
+    print("  pool code toward the shared kernel/driver VA layer.")
+elif full_triad:
+    print("  av1_vaapi CLEAN with FULL triad: strengthens the ffmpeg-migration case (Option C).")
+else:
+    print("  av1_vaapi CLEAN but PARTIAL triad: immunity NOT proven (D-03) -- a clean result")
+    print("  here does not confirm av1_vaapi is immune to the trigger triad, only that the")
+    print("  legs that WERE reproducible did not corrupt under this concurrency.")
+print()
+print("-- Detection-N vs validation-N (D-07) --")
+print(f"  This batch is the DETECTION sample (N_requested={n_requested}), sized to observe")
+print("  whether av1_vaapi reproduces the documented corruption under 3-way concurrency.")
+print("  A larger ~60 zero-failure VALIDATION-N (rule-of-three) is defined but only run")
+print("  if the gated-escalation verdict above calls for it (D-08).")
+print("=" * 78)
+PYEOF
+}
+
+# ---------------------------------------------------------------------------
 # run-batch-vaapi [N=20] -- loop cmd_run_iter_vaapi N times, write
 # report_vaapi.csv (distinct from the qsvencc report.csv). Structural copy of
 # cmd_run_batch: WR-08 numeric-N guard, disk preflight, an EXTENDED
@@ -1235,15 +1435,6 @@ cmd_run_batch() {
 # AND the av1_qsv control references), inter-iteration GPU-idle recheck with
 # cleanup_gpu_procs retries, and the "one bad iteration never aborts the
 # batch" pattern.
-#
-# PLACEHOLDER: replace in 02-03 Task 1 -- this plan intentionally does NOT
-# call print_batch_summary_vaapi (it does not exist yet) and does NOT call
-# the qsvencc print_batch_summary (its text would misdescribe an av1_vaapi
-# batch). The placeholder below only dumps the raw report so the smoke run
-# has something to inspect. MANDATORY HANDOFF: a batch that ships with this
-# placeholder active produces measurement rows but NO interpretive summary
-# (no triad caveat, no gated escalation, no SC#2 interpretation) -- 02-03
-# Task 1 MUST replace this with the real print_batch_summary_vaapi call.
 # ---------------------------------------------------------------------------
 cmd_run_batch_vaapi() {
   local n_requested="${1:-20}"
@@ -1316,13 +1507,7 @@ cmd_run_batch_vaapi() {
   done
 
   echo "vaapi batch complete: n_requested=$n_requested n_actual=$n_actual contaminated_skipped=$n_contaminated"
-  # PLACEHOLDER: replace in 02-03 Task 1 with print_batch_summary_vaapi.
-  # Deliberately NOT calling print_batch_summary (qsvencc-specific text would
-  # misdescribe this av1_vaapi batch) and NOT yet calling a
-  # print_batch_summary_vaapi (does not exist until 02-03). Dump the raw
-  # report so this plan's smoke run has something to inspect.
-  echo "-- report_vaapi.csv (raw; interpretive summary deferred to 02-03 Task 1) --"
-  cat "$report"
+  print_batch_summary_vaapi "$report" "$n_requested" "$n_actual"
 }
 
 # ---------------------------------------------------------------------------
