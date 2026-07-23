@@ -128,8 +128,11 @@ cmd_reference() {
   local md5_a md5_b
   md5_a="$(md5sum "$W/reference/chunk923_ref.obu" | awk '{print $1}')"
   md5_b="$(md5sum "$W/reference/chunk923_ref_repeat.obu" | awk '{print $1}')"
-  if [[ "$md5_a" != "$md5_b" ]]; then
-    echo "ABORT: reference determinism check failed -- md5 $md5_a != $md5_b (D-05 precondition violated)" >&2
+  # WR-10: without pipefail an md5sum failure yields two empty strings, and
+  # "" == "" would pass this D-05 precondition gate on no data. Require both
+  # hashes to be non-empty AND equal (same fail-closed direction as CR-01).
+  if [[ -z "$md5_a" || -z "$md5_b" || "$md5_a" != "$md5_b" ]]; then
+    echo "ABORT: reference determinism check invalid or failed -- md5 '$md5_a' vs '$md5_b' (D-05 precondition violated)" >&2
     exit 1
   fi
   echo "reference determinism OK: md5 $md5_a matches across two isolated encodes"
