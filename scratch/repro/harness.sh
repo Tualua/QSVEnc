@@ -685,6 +685,12 @@ PYEOF
 # ---------------------------------------------------------------------------
 cmd_run_batch() {
   local n_requested="${1:-20}"
+  # WR-08: a non-numeric N silently no-ops `seq` (zero iterations) and then
+  # crashes the Python summary at int(N_REQUESTED). Validate up front.
+  if [[ ! "$n_requested" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ABORT: N must be a positive integer (got: '$n_requested')" >&2
+    exit 2
+  fi
   mkdir -p "$W/runs" "$W/control_runs"
 
   # Disk preflight (review hygiene item 11) -- a full disk mid-batch would
