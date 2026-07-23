@@ -746,6 +746,33 @@ cmd_run_iter_vaapi() {
     echo "vaapi scene $scene offset $off: psnr_db=${psnr_db[$scene]} corrupt=${corrupt[$scene]}"
   done
 
+  # --- Step 2b: content-origin cross-match (D-09/D-10) -- only invoked when
+  #     a scene classifies corrupt, so this costs nothing on a clean batch
+  #     (the expected PARTIAL-TRIAD case per 02-03). Cross-matches that
+  #     scene's corrupt frame against the OTHER TWO scenes' SAME-iteration
+  #     av1_vaapi .obu outputs, writing $it_dir/crossmatch.txt. ---
+  local ccm_report="$it_dir/crossmatch.txt" ccm_any=0
+  local ccm_A ccm_B ccm_A_obu ccm_B_obu ccm_png
+  for scene in 923 928 1129; do
+    [[ "${corrupt[$scene]:-}" == "1" ]] || continue
+    if [[ $ccm_any -eq 0 ]]; then
+      : > "$ccm_report"
+      ccm_any=1
+    fi
+    case "$scene" in
+      923) ccm_png="$it_dir/frame299.png"; ccm_A=928; ccm_B=1129 ;;
+      928) ccm_png="$it_dir/frame96_928.png"; ccm_A=923; ccm_B=1129 ;;
+      1129) ccm_png="$it_dir/frame299_1129.png"; ccm_A=923; ccm_B=928 ;;
+    esac
+    ccm_A_obu="$it_dir/c${ccm_A}.obu"
+    ccm_B_obu="$it_dir/c${ccm_B}.obu"
+    content_cross_match "it$n-$scene-vaapi" "$ccm_png" "$ccm_A" "$ccm_A_obu" "$ccm_B" "$ccm_B_obu" "$ccm_report" \
+      || echo "WARN: av1_vaapi content_cross_match failed for it$n scene $scene -- see stderr above" >&2
+  done
+  if [[ $ccm_any -eq 1 ]]; then
+    echo "vaapi iteration $n: content-origin cross-match written to $ccm_report"
+  fi
+
   # --- Step 3: paired ffmpeg av1_qsv immune control, sequential-after,
   #     UNCHANGED (D-11) -- identical to cmd_run_iter's own control block ---
   ctrl_encode "$SCENE_923_SEEK" 339 "$ctrl_dir/c923.obu" &
@@ -1662,13 +1689,14 @@ cmd_run_batch() {
 print_batch_summary_vaapi() {
   local report="$1" n_requested="$2" n_actual="$3"
   REPORT_CSV="$report" N_REQUESTED="$n_requested" N_ACTUAL="$n_actual" \
-    VAAPI_PROBE_FILE="$W/vaapi_probe.txt" python3 <<'PYEOF' | tee "$W/summary_vaapi.txt"
-import csv, os, math, statistics
+    VAAPI_PROBE_FILE="$W/vaapi_probe.txt" WORKDIR="$W" python3 <<'PYEOF' | tee "$W/summary_vaapi.txt"
+import csv, os, math, statistics, glob
 
 report_csv = os.environ["REPORT_CSV"]
 n_requested = int(os.environ["N_REQUESTED"])
 n_actual = int(os.environ["N_ACTUAL"])
 probe_file = os.environ["VAAPI_PROBE_FILE"]
+workdir = os.environ["WORKDIR"]
 
 rows = []
 with open(report_csv, newline="") as f:
@@ -1822,6 +1850,32 @@ elif full_triad:
 else:
     print(f"  0/{n_actual} with PARTIAL/UNKNOWN triad -> do NOT escalate; 60 runs on a broken triad prove nothing")
     print("  report detection-grade PARTIAL-TRIAD only")
+print()
+print("-- Content-origin cross-match (D-09/D-10) --")
+if total_corrupt >= 1:
+    ccm_files = sorted(glob.glob(os.path.join(workdir, "vaapi_runs", "it*", "crossmatch.txt")))
+    any_lines = False
+    for path in ccm_files:
+        try:
+            with open(path) as f:
+                content = f.read().strip()
+        except OSError:
+            continue
+        if content:
+            any_lines = True
+            it_label = os.path.basename(os.path.dirname(path))
+            for line in content.splitlines():
+                print(f"  {it_label}: {line}")
+    if not any_lines:
+        print("  av1_vaapi corrupt frame(s) observed but no crossmatch.txt content found -- see vaapi_runs/itNN/crossmatch.txt")
+else:
+    print("  no av1_vaapi corrupt frame observed -> nothing to cross-match (cross-session-swap")
+    print("  mechanism confirmation for av1_vaapi is N/A this batch)")
+qsvencc_ccm_path = os.path.join(workdir, "crossmatch_qsvencc.txt")
+if os.path.exists(qsvencc_ccm_path):
+    print(f"  qsvencc baseline cross-match: see {qsvencc_ccm_path} (both baselines' mechanism findings visible together, D-10)")
+else:
+    print("  qsvencc cross-match: see crossmatch_qsvencc.txt (run cross-match-qsvencc)")
 print()
 print("-- Interpretation (roadmap SC#2) --")
 if total_corrupt >= 1:
