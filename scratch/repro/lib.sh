@@ -67,8 +67,21 @@ require_gpu_exclusive() {
 # ---------------------------------------------------------------------------
 run_encode() {
   local logfile="$1"; shift
-  timeout "${ENCODE_TIMEOUT}" "$@" > "$logfile" 2>&1
+  # WR-09: -k 10 (SIGKILL 10s after the initial SIGTERM) guarantees a hung
+  # encode that ignores SIGTERM is still force-killed, so the timeout can
+  # never wait indefinitely. Exit 124 still signals the timeout fired.
+  timeout -k 10 "${ENCODE_TIMEOUT}" "$@" > "$logfile" 2>&1
   return $?
+}
+
+# ---------------------------------------------------------------------------
+# ff_bounded -- run an inline ffmpeg extraction/PSNR stage under the same
+# bounded timeout as run_encode (WR-09), so a hung ffmpeg (e.g. a wedged GPU
+# job) can never block the whole harness with no time bound. Preserves
+# ffmpeg's own exit code / stdout / stderr for the caller's guards.
+# ---------------------------------------------------------------------------
+ff_bounded() {
+  timeout -k 10 "${ENCODE_TIMEOUT}" ffmpeg "$@"
 }
 
 # ---------------------------------------------------------------------------

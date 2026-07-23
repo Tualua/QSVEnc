@@ -150,7 +150,7 @@ cmd_reference() {
   fi
   echo "reference frame-count gate OK: nb_read_frames=$nb_frames, offset $SCENE_923_OFF in range"
 
-  ffmpeg -y -nostdin -i "$W/reference/chunk923_ref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
+  ff_bounded -y -nostdin -i "$W/reference/chunk923_ref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
     "$W/reference/frame299_ref.png" -hide_banner -loglevel error \
     || { echo "ABORT: reference frame extraction failed" >&2; exit 1; }
   echo "reference frame extracted: $W/reference/frame299_ref.png"
@@ -280,7 +280,7 @@ ensure_control_reference() {
   require_gpu_exclusive || { echo "ABORT: control-reference step requires exclusive GPU access" >&2; return 1; }
   ctrl_encode "$seek" "$frames" "$obu" \
     || { echo "ABORT: control reference encode for scene $scene failed" >&2; return 1; }
-  ffmpeg -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
+  ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
     "$png" -hide_banner -loglevel error \
     || { echo "ABORT: control reference frame extraction for scene $scene failed" >&2; return 1; }
   echo "control reference generated for scene $scene: $obu"
@@ -316,7 +316,7 @@ ensure_scene_reference() {
   require_gpu_exclusive || { echo "ABORT: reference generation for scene $scene requires exclusive GPU access" >&2; return 1; }
   qsvencc --avhw --va -i "$SRC" $COMMON --seek "$seek" --trim "$trim" -o "$obu" \
     || { echo "ABORT: reference encode for scene $scene failed" >&2; return 1; }
-  ffmpeg -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
+  ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
     || { echo "ABORT: reference frame extraction for scene $scene failed" >&2; return 1; }
   return 0
 }
@@ -328,7 +328,7 @@ ensure_scene_reference() {
 # ---------------------------------------------------------------------------
 psnr_of() {
   local test_png="$1" ref_png="$2" statsfile="$3"
-  LC_ALL=C ffmpeg -y -nostdin -i "$test_png" -i "$ref_png" -lavfi "psnr=stats_file=$statsfile" \
+  LC_ALL=C ff_bounded -y -nostdin -i "$test_png" -i "$ref_png" -lavfi "psnr=stats_file=$statsfile" \
     -f null - -hide_banner -loglevel error
   awk -F'psnr_avg:' '{split($2,a," "); print a[1]}' "$statsfile"
 }
@@ -450,7 +450,7 @@ cmd_run_iter() {
     # (a truncated/broken .obu). It must NEVER fall through to a clean score.
     # Guard the extraction and treat a missing/empty test frame or an empty
     # PSNR as an explicit MEASURE_FAILURE, excluded from the denominator.
-    if ! ffmpeg -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
+    if ! ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
          "$test_png" -hide_banner -loglevel error || [[ ! -s "$test_png" ]]; then
       psnr_db[$scene]="NA"; corrupt[$scene]="NA"; meas_fail[$scene]=1
       echo "scene $scene offset $off: MEASURE_FAILURE (frame extraction failed / test frame missing)"
@@ -497,7 +497,7 @@ cmd_run_iter() {
       coff="$(scene_offset "$cscene")"
       cref="$(ctrl_ref_png "$cscene")"
       cpng="$ctrl_dir/ctrl_frame_${cscene}.png"
-      if ! ffmpeg -y -nostdin -i "$ctrl_dir/c${cscene}.obu" -vf "select='eq(n\,$coff)'" -vsync 0 -frames:v 1 \
+      if ! ff_bounded -y -nostdin -i "$ctrl_dir/c${cscene}.obu" -vf "select='eq(n\,$coff)'" -vsync 0 -frames:v 1 \
            "$cpng" -hide_banner -loglevel error || [[ ! -s "$cpng" ]]; then
         echo "control scene $cscene: frame extraction failed -> control NOT clean"
         control_clean="0"; continue
