@@ -184,3 +184,13 @@ $RECYCLE.BIN/
 
 # Mac desktop service store files
 .DS_Store
+
+# =========================
+# Reproduction harness workdir
+# (harness source under scratch/repro/*.sh is tracked; generated
+# outputs -- fingerprints, encoded chunks, frames, reports -- are not)
+# =========================
+/scratch/*
+!/scratch/repro/
+/scratch/repro/*
+!/scratch/repro/*.sh
