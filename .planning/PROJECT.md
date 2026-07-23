@@ -26,11 +26,13 @@ A diagnose-and-resolve investigation into a silent, single-frame corruption that
 - ✓ **QSVEnc builds from source in this environment** — full toolchain validated; `qsvencc` (r4386, gcc 13.3) compiles and drives the Arc A380 (AV1 10-bit encode + HW decode confirmed via `--check-features`). — this environment
 - ✓ **Bug reproduced in THIS environment with a control-validated baseline** — calibrated harness (`scratch/repro/`) on the Arc A380 records, on-disk, N=20 3-way concurrency: 923/299 **9/20 (45%)**, 1129/299 **8/20 (40%)**, 928/96 **0/20**; corrupt-frame PSNR mean **12.96 dB** (σ 0.18, threshold <30 dB); paired ffmpeg `av1_qsv` immune control **0/20** clean; environment fingerprint confirms same-kernel `6.19.14-200.fc43`. Observed signature (~12.96 dB) differs from the prior session's 15.74 dB — the harness reports the OBSERVED value. Durable evidence: `.planning/phases/01-harness-control-environment-fingerprinting/01-EVIDENCE.md`. — Validated in Phase 1
 
+- ✓ **Pure VA-API `av1_vaapi` triangulated (bypassing oneVPL) — clean but immunity NOT proven** — N=20 3-way concurrent `av1_vaapi` (923/928/1129) recorded **0/20 corrupt** on all three scenes, paired ffmpeg `av1_qsv` control **0/20** clean, through the Phase-1 harness. The trigger triad was only **PARTIAL** on this Arc A380 (B-frame reorder UNSUPPORTED; P010 + HW-VA-decode ACTIVE), so under D-03 immunity is **NOT proven** and escalation to N~60 is correctly withheld. Secondary finding: content cross-match of all 17 Phase-1 qsvencc corrupt frames found **0 confirmed cross-session swaps (≥35 dB)** — the corruption is not a clean whole-frame swap, so Phase-1's mechanism-vs-symptom note stays **OPEN**. Durable evidence: `.planning/phases/02-in-container-triangulation-av1-vaapi/02-EVIDENCE.md`. — Validated in Phase 2 (DIAG-02)
+
 ### Active
 
 <!-- The mission for this GPU+/data environment. Hypotheses until confirmed. -->
 - [ ] Resolve the host/kernel fork: confirm whether this host's kernel/GPU-driver differs from the affected `6.19.14-200.fc43` / i915, and whether that changes reproduction.
-- [ ] Test untried in-place host-side levers: switch Arc (Alchemist/DG2) from `i915` to the `Xe` driver; update GuC/HuC firmware; try pure VA-API `av1_vaapi` as a quieter path.
+- [ ] Test untried in-place host-side levers: switch Arc (Alchemist/DG2) from `i915` to the `Xe` driver; update GuC/HuC firmware. (av1_vaapi leg measured in Phase 2 — clean under PARTIAL triad, immunity not proven.)
 - [ ] Produce a correctness-first recommendation for `enpipe` (which §7 workaround), backed by measured throughput numbers in this environment.
 - [ ] Design a defense-in-depth per-frame content-verification gate (e.g. VMAF/PSNR on the final joined `movie.obu` vs source) so a silent single-frame swap cannot ship — independent of which fix is chosen.
 - [ ] Decide/act on the acknowledged tech debt: the corrupted shipped Cold Eyes encode (frames 39121/61365/73734/110079/110992/136249) — correct re-encode after a fix, at user's discretion.
@@ -87,4 +89,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-23 after Phase 1 complete — control-validated reproduction baseline recorded on-disk in this environment*
+*Last updated: 2026-07-23 after Phase 2 complete — av1_vaapi triangulation recorded (0/20 corrupt, PARTIAL triad, immunity NOT proven; DIAG-02 validated). Next: Phase 3 host-side levers (host-access-gated).*
