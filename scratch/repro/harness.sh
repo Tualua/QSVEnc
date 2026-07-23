@@ -612,7 +612,7 @@ cmd_run_batch() {
   local report="$W/report.csv"
   echo "iteration,scene,offset,status,psnr_db,corrupt,control_clean" > "$report"
 
-  local i iter_label n_actual=0
+  local i iter_label n_actual=0 n_contaminated=0
   for i in $(seq 1 "$n_requested"); do
     iter_label="$(printf "%02d" "$i")"
 
@@ -635,18 +635,23 @@ cmd_run_batch() {
         off="$(scene_offset "$scene")"
         echo "$iter_label,$scene,$off,EXEC_FAILURE,NA,NA,NA" >> "$report"
       done
-      n_actual=$((n_actual + 1))
+      # WR-02: a contaminated skip produced no run_iter row; count it
+      # separately rather than inflating n_actual (which must reflect only
+      # iterations that produced usable measurement rows).
+      n_contaminated=$((n_contaminated + 1))
       continue
     fi
 
     cmd_run_iter "$iter_label" || true
     if [[ -f "$W/runs/it$iter_label/result.csv" ]]; then
       cat "$W/runs/it$iter_label/result.csv" >> "$report"
+      # WR-02: only iterations that actually produced rows count as "actual",
+      # so control_invalid/n_actual has a truthful denominator.
+      n_actual=$((n_actual + 1))
     fi
-    n_actual=$((n_actual + 1))
   done
 
-  echo "batch complete: n_requested=$n_requested n_actual=$n_actual"
+  echo "batch complete: n_requested=$n_requested n_actual=$n_actual contaminated_skipped=$n_contaminated"
   print_batch_summary "$report" "$n_requested" "$n_actual"
 }
 
