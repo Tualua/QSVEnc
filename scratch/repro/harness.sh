@@ -1003,6 +1003,422 @@ cmd_run_iter() {
 }
 
 # ---------------------------------------------------------------------------
+# Content-origin cross-match (D-09/D-10): for a frame classified corrupt
+# (<30 dB self-reference), confirm its content actually originates from one
+# of the OTHER concurrently-running scenes' same-iteration output -- not
+# generic garbage -- using ONLY the Phase-1-proven psnr_of() primitive
+# (02-RESEARCH.md Pattern 2). This is an add-on to the PSNR classifier,
+# never a replacement.
+#
+# THRESHOLD BAND (distinct from, and higher than, the 30 dB self-reference
+# corrupt threshold -- grounded in the qsvencc corrupt frames scoring
+# ~12-22 dB against their OWN reference, so a genuine cross-scene content
+# match must sit well above that):
+#   best_psnr >= 35 dB          -> CONFIRMED CROSS-SESSION CONTENT SWAP
+#   20 dB <= best_psnr < 35 dB  -> AMBIGUOUS ORIGIN
+#   best_psnr < 20 dB           -> GENERIC GARBAGE (no cross-scene origin)
+# TIE-BREAK: if the best match against EACH of the two other scenes is
+# within ~2 dB of each other, report "ambiguous origin (matches both
+# concurrent scenes within 2 dB)" rather than silently picking one.
+#
+# Performance note: a naive per-candidate single-frame `select=eq(n,f)`
+# extraction re-decodes an .obu from its start for EVERY candidate index (no
+# keyframe seeking in a raw AV1 elementary stream), making an N-frame
+# scene's full candidate scan cost O(N^2) decode time -- empirically ~1-1.4s
+# PER candidate on this hardware, which would put the full historical scan
+# at several hours. Instead each OTHER-scene .obu is decoded ONCE per
+# (iteration, scene) pair into a cache directory under crossmatch_cache/
+# (5-15s for a 111-362 frame scene, verified empirically), and every corrupt
+# frame that needs that same iteration+scene's candidates reuses the cache
+# -- an O(N) extraction amortized across every corrupt-frame comparison
+# against it (e.g. iterations where BOTH 923 and 1129 are corrupt reuse the
+# same 928 candidate cache), turning a several-hour naive scan into roughly
+# an hour.
+#
+# Fail-closed (CR-01/T-02-10 lineage): an empty/failed candidate PSNR is
+# logged distinctly via failed_candidates in the report line, NEVER silently
+# treated as "no match" or scored as 0 -- it is excluded from the best-match
+# search, not folded into it.
+#
+# Worker-function contract: echoes ABORT to stderr and returns 1 on a hard
+# failure (missing corrupt PNG, both other-scene legs unusable); never
+# exit/die. cmd_cross_match_qsvencc (top-level) is the only entry allowed to
+# exit.
+# ---------------------------------------------------------------------------
+_ccm_cache_key() {
+  local obu="$1"
+  echo "$(basename "$(dirname "$obu")")_$(basename "$obu" .obu)"
+}
+
+# _ccm_extract_candidates <obu> <cache_key> <max_candidates> -- decode <obu>
+# ONCE into $W/crossmatch_cache/<cache_key>/frame_%04d.png (0-based, matching
+# the "n" convention used everywhere else in this harness), reusing an
+# already-populated cache dir if present. max_candidates=0 means extract
+# every frame (full scan); >0 caps to the first N frames via -frames:v,
+# which lets ffmpeg stop decoding early (used by --smoke).
+_ccm_extract_candidates() {
+  local obu="$1" cache_key="$2" max_candidates="$3"
+  local cache_dir="$W/crossmatch_cache/$cache_key"
+  if [[ -d "$cache_dir" && -n "$(ls -A "$cache_dir" 2>/dev/null)" ]]; then
+    echo "$cache_dir"
+    return 0
+  fi
+  mkdir -p "$cache_dir" || { echo "ABORT: mkdir cache dir failed: $cache_dir" >&2; return 1; }
+  if [[ "$max_candidates" -gt 0 ]]; then
+    ff_bounded -y -nostdin -i "$obu" -start_number 0 -frames:v "$max_candidates" -vsync 0 \
+      "$cache_dir/frame_%04d.png" -hide_banner -loglevel error
+  else
+    ff_bounded -y -nostdin -i "$obu" -start_number 0 -vsync 0 \
+      "$cache_dir/frame_%04d.png" -hide_banner -loglevel error
+  fi
+  local rc=$?
+  if [[ $rc -ne 0 || -z "$(ls -A "$cache_dir" 2>/dev/null)" ]]; then
+    echo "ABORT: candidate frame extraction failed for $obu (exit $rc)" >&2
+    return 1
+  fi
+  echo "$cache_dir"
+  return 0
+}
+
+# _ccm_psnr_num <raw psnr_of output> -- numeric form for awk comparisons
+# ("inf" -> 999, a well-above-band sentinel; empty stays empty).
+_ccm_psnr_num() {
+  local p="$1"
+  if [[ "$p" == "inf" ]]; then
+    echo "999"
+  elif [[ -z "$p" ]]; then
+    echo ""
+  else
+    echo "$p"
+  fi
+}
+
+# _ccm_band <numeric psnr> -- the explicit, auditable threshold-band verdict.
+_ccm_band() {
+  local psnr_num="$1"
+  if [[ -z "$psnr_num" ]]; then
+    echo "NO VALID CANDIDATES (fail-closed -- cannot classify)"
+    return
+  fi
+  awk -v p="$psnr_num" 'BEGIN {
+    if (p+0 >= 35) print "CONFIRMED CROSS-SESSION CONTENT SWAP";
+    else if (p+0 >= 20) print "AMBIGUOUS ORIGIN";
+    else print "GENERIC GARBAGE (no cross-scene origin)";
+  }'
+}
+
+# content_cross_match <corrupt_label> <corrupt_png> <otherA_scene> <otherA_obu>
+#                      <otherB_scene> <otherB_obu> <out_report> [max_candidates]
+# Appends one auditable line to out_report and returns 0, or returns 1 (with
+# an ABORT to stderr) only if BOTH other-scene legs are entirely unusable.
+content_cross_match() {
+  local corrupt_label="$1" corrupt_png="$2"
+  local otherA_scene="$3" otherA_obu="$4"
+  local otherB_scene="$5" otherB_obu="$6"
+  local out_report="$7"
+  local max_candidates="${8:-0}"
+
+  if [[ ! -f "$corrupt_png" ]]; then
+    echo "ABORT: content_cross_match corrupt_png missing: $corrupt_png" >&2
+    return 1
+  fi
+
+  local -A scene_best scene_best_raw scene_best_desc
+  local failed_count=0 usable_legs=0
+  local -a pairs=("$otherA_scene:$otherA_obu" "$otherB_scene:$otherB_obu")
+  local pair sc ob
+  for pair in "${pairs[@]}"; do
+    sc="${pair%%:*}"; ob="${pair#*:}"
+    if [[ ! -f "$ob" ]]; then
+      echo "content_cross_match: WARN other-scene obu missing for scene $sc ($corrupt_label): $ob" >&2
+      scene_best[$sc]=""; scene_best_raw[$sc]=""; scene_best_desc[$sc]="obu missing"
+      continue
+    fi
+    local cache_key cache_dir
+    cache_key="$(_ccm_cache_key "$ob")"
+    cache_dir="$(_ccm_extract_candidates "$ob" "$cache_key" "$max_candidates")"
+    if [[ -z "$cache_dir" ]]; then
+      echo "content_cross_match: WARN candidate extraction failed for scene $sc ($corrupt_label)" >&2
+      scene_best[$sc]=""; scene_best_raw[$sc]=""; scene_best_desc[$sc]="extraction failed"
+      failed_count=$((failed_count + 1))
+      continue
+    fi
+    usable_legs=$((usable_legs + 1))
+    local best_local="" best_local_raw="" best_local_desc="" scanned=0
+    local cand idx statsfile p pnum
+    for cand in "$cache_dir"/frame_*.png; do
+      [[ -f "$cand" ]] || continue
+      scanned=$((scanned + 1))
+      if (( scanned % 100 == 0 )); then
+        echo "  content_cross_match progress ($corrupt_label vs scene $sc): $scanned candidates scanned"
+      fi
+      idx="$(basename "$cand" .png)"; idx="${idx#frame_}"
+      statsfile="$W/crossmatch_cache/.psnr_tmp_$$.log"
+      p="$(psnr_of "$corrupt_png" "$cand" "$statsfile")"
+      rm -f "$statsfile"
+      if [[ -z "$p" ]]; then
+        # CR-01/T-02-10 fail-closed: logged distinctly, never silently
+        # treated as "no match" or scored as 0.
+        echo "content_cross_match: WARN empty PSNR for $corrupt_label vs scene $sc frame $idx -- logged, not scored" >&2
+        failed_count=$((failed_count + 1))
+        continue
+      fi
+      pnum="$(_ccm_psnr_num "$p")"
+      if [[ -z "$best_local" ]] || awk -v a="$pnum" -v b="$best_local" 'BEGIN{exit !(a+0>b+0)}'; then
+        best_local="$pnum"; best_local_raw="$p"; best_local_desc="scene $sc frame $idx"
+      fi
+    done
+    scene_best[$sc]="$best_local"
+    scene_best_raw[$sc]="$best_local_raw"
+    scene_best_desc[$sc]="${best_local_desc:-no candidates found} ($scanned candidates scanned)"
+  done
+
+  if [[ $usable_legs -eq 0 ]]; then
+    echo "ABORT: content_cross_match both other-scene legs unusable for $corrupt_label" >&2
+    echo "$corrupt_label: BOTH other-scene legs unusable -- verdict=NO VALID CANDIDATES (fail-closed)" >> "$out_report"
+    return 1
+  fi
+
+  local a_num="${scene_best[$otherA_scene]}" a_raw="${scene_best_raw[$otherA_scene]}"
+  local b_num="${scene_best[$otherB_scene]}" b_raw="${scene_best_raw[$otherB_scene]}"
+  local verdict best_display_raw winner_num diff
+
+  if [[ -n "$a_num" && -n "$b_num" ]]; then
+    diff="$(awk -v a="$a_num" -v b="$b_num" 'BEGIN{d=a-b; if(d<0)d=-d; print d}')"
+    if awk -v d="$diff" 'BEGIN{exit !(d<=2)}'; then
+      verdict="AMBIGUOUS ORIGIN (matches both concurrent scenes within 2 dB)"
+      if awk -v a="$a_num" -v b="$b_num" 'BEGIN{exit !(a>=b)}'; then best_display_raw="$a_raw"; else best_display_raw="$b_raw"; fi
+    else
+      if awk -v a="$a_num" -v b="$b_num" 'BEGIN{exit !(a>b)}'; then
+        best_display_raw="$a_raw"; winner_num="$a_num"
+      else
+        best_display_raw="$b_raw"; winner_num="$b_num"
+      fi
+      verdict="$(_ccm_band "$winner_num")"
+    fi
+  elif [[ -n "$a_num" ]]; then
+    best_display_raw="$a_raw"; verdict="$(_ccm_band "$a_num")"
+  elif [[ -n "$b_num" ]]; then
+    best_display_raw="$b_raw"; verdict="$(_ccm_band "$b_num")"
+  else
+    best_display_raw=""
+    verdict="NO VALID CANDIDATES (fail-closed -- no scored candidates from either scene)"
+  fi
+
+  local disp_a="${a_raw:-NA}" disp_b="${b_raw:-NA}"
+  echo "$corrupt_label: vs_${otherA_scene}=${disp_a} (${scene_best_desc[$otherA_scene]:-n/a}) vs_${otherB_scene}=${disp_b} (${scene_best_desc[$otherB_scene]:-n/a}) failed_candidates=$failed_count best_psnr=${best_display_raw:-NA} verdict=$verdict" >> "$out_report"
+  echo "content_cross_match result for $corrupt_label: best_psnr=${best_display_raw:-NA} verdict=$verdict"
+  return 0
+}
+
+# _ccm_corrupt_png_path <scene> <it> -- the Phase-1 on-disk corrupt-frame PNG
+# path for a qsvencc historical iteration (mirrors cmd_run_iter's own
+# test_png naming: 923 -> frame299.png, 1129 -> frame299_1129.png).
+_ccm_corrupt_png_path() {
+  local scene="$1" it="$2"
+  case "$scene" in
+    923) echo "$W/runs/it$it/frame299.png" ;;
+    1129) echo "$W/runs/it$it/frame299_1129.png" ;;
+    *) echo "unsupported scene for qsvencc cross-match: $scene" >&2; return 1 ;;
+  esac
+}
+
+# _ccm_ensure_corrupt_png <scene> <it> -- PNG preflight (T-02-16): extract the
+# corrupt-frame PNG from that iteration's .obu at scene_offset if it is not
+# already on disk, so the long scan cannot fail mid-way on a missing input.
+_ccm_ensure_corrupt_png() {
+  local scene="$1" it="$2" png off obu
+  png="$(_ccm_corrupt_png_path "$scene" "$it")" || return 1
+  [[ -f "$png" ]] && return 0
+  off="$(scene_offset "$scene")"
+  obu="$W/runs/it$it/c${scene}.obu"
+  if [[ ! -f "$obu" ]]; then
+    echo "ABORT: cannot preflight corrupt-frame PNG for it$it scene $scene -- source obu missing: $obu" >&2
+    return 1
+  fi
+  echo "preflight: extracting missing corrupt-frame PNG for it$it scene $scene from $obu (offset $off)"
+  ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
+    || { echo "ABORT: preflight extraction failed for it$it scene $scene" >&2; return 1; }
+  [[ -s "$png" ]] || { echo "ABORT: preflight extraction produced empty file for it$it scene $scene" >&2; return 1; }
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# cmd_cross_match_qsvencc [--smoke] -- top-level entry point (D-09/D-10):
+# apply content_cross_match to the historical Phase-1 qsvencc corrupt frames
+# (scratch/repro/runs/itNN/, read strictly READ-ONLY -- T-02-11). Closes
+# Phase 1's summary.txt "Mechanism-vs-symptom NOTE", explicitly deferred to
+# Phase 2.
+#
+#   --smoke  scans exactly ONE corrupt frame against a capped ~15-candidate
+#            subset of each other scene, writing crossmatch_qsvencc_smoke.txt
+#            in well under a minute -- proves the code path + verdict format
+#            WITHOUT the multi-hour full scan. NEVER overwrites the real
+#            full-scan output file.
+#   (none)   full historical scan over every report.csv corrupt row (or the
+#            01-EVIDENCE.md fallback list if report.csv is missing/empty),
+#            writing crossmatch_qsvencc.txt with an aggregate verdict. This
+#            is the long operator batch (T-02-16) -- run via a backgrounded
+#            / non-blocking mechanism, never inside a short verify timeout.
+#
+# report.csv GUARD: the corrupt set is read at runtime from report.csv
+# (corrupt==1, status==OK rows), never hardcoded. A missing/empty report.csv
+# degrades to a loud WARN + the documented 01-EVIDENCE.md corrupt-iteration
+# list; if BOTH report.csv and the runs/ .obu inputs are absent, this
+# ABORTs (nothing to cross-match against).
+#
+# Top-level cmd_* entry point: the only cross-match function allowed to
+# exit; content_cross_match itself only returns.
+# ---------------------------------------------------------------------------
+cmd_cross_match_qsvencc() {
+  local smoke=0
+  [[ "${1:-}" == "--smoke" ]] && smoke=1
+
+  echo "=============================================================================="
+  echo "content-origin cross-match: qsvencc historical corrupt-frame scan (D-09/D-10)"
+  echo "=============================================================================="
+  if [[ $smoke -eq 1 ]]; then
+    echo "MODE: --smoke -- ONE corrupt frame, ~15-candidate cap per other scene, writes"
+    echo "  crossmatch_qsvencc_smoke.txt (does NOT touch the real crossmatch_qsvencc.txt)"
+  else
+    echo "COST WARNING: full historical scan, GPU-free (decode+PSNR only, no Arc"
+    echo "  contention) but NOT a trivial-cost step -- expect roughly ~1 hour"
+    echo "  wall-clock on this hardware (each other-scene .obu is decoded once into a"
+    echo "  cache, then ~1500-3500 PSNR compares against the cached candidates). Run"
+    echo "  this as a background / non-blocking operator batch, never inside a short"
+    echo "  verify timeout."
+    local avail_kb threshold_kb=$((30 * 1024 * 1024))
+    avail_kb="$(df -Pk "$W" | awk 'NR==2{print $4}')"
+    if [[ -z "$avail_kb" || "$avail_kb" -lt "$threshold_kb" ]]; then
+      echo "ABORT: insufficient free disk space under $W for the candidate-frame cache (available: ${avail_kb:-unknown} KB, need >= ${threshold_kb} KB)" >&2
+      exit 1
+    fi
+    echo "disk preflight OK: ${avail_kb} KB available under $W"
+  fi
+  echo
+
+  local report="$W/report.csv"
+  local -a corrupt_923_its=() corrupt_1129_its=()
+  local have_report=0
+  if [[ -s "$report" ]]; then
+    have_report=1
+    local iteration scene offset status psnr_db corrupt control_clean
+    while IFS=, read -r iteration scene offset status psnr_db corrupt control_clean; do
+      [[ "$iteration" == "iteration" ]] && continue
+      [[ "$status" == "OK" && "$corrupt" == "1" ]] || continue
+      case "$scene" in
+        923) corrupt_923_its+=("$iteration") ;;
+        1129) corrupt_1129_its+=("$iteration") ;;
+      esac
+    done < "$report"
+  fi
+
+  if [[ $have_report -eq 0 || ( ${#corrupt_923_its[@]} -eq 0 && ${#corrupt_1129_its[@]} -eq 0 ) ]]; then
+    echo "WARN: report.csv not found or has zero corrupt rows; falling back to the 01-EVIDENCE.md known corrupt list" >&2
+    if [[ ! -d "$W/runs" || -z "$(find "$W/runs" -maxdepth 2 -name '*.obu' -print -quit 2>/dev/null)" ]]; then
+      echo "ABORT: report.csv not found and runs/ .obu inputs missing; re-run Phase 1 run-batch first" >&2
+      exit 1
+    fi
+    corrupt_923_its=(04 07 08 10 11 12 14 17)
+    corrupt_1129_its=(05 06 09 10 12 13 14 18)
+  fi
+
+  echo "corrupt set: scene 923 -> ${corrupt_923_its[*]:-(none)}  scene 1129 -> ${corrupt_1129_its[*]:-(none)}"
+  echo
+
+  # PNG preflight (T-02-16): ensure every corrupt-frame PNG exists BEFORE the
+  # long loop starts, so the multi-hour scan cannot fail mid-way on a
+  # missing input (1129's frame299_1129.png in particular may not have been
+  # extracted per-iteration in Phase 1).
+  local it
+  for it in "${corrupt_923_its[@]}"; do
+    _ccm_ensure_corrupt_png 923 "$it" || exit 1
+  done
+  for it in "${corrupt_1129_its[@]}"; do
+    _ccm_ensure_corrupt_png 1129 "$it" || exit 1
+  done
+  echo "corrupt-frame PNG preflight OK"
+  echo
+
+  local out_report max_candidates
+  if [[ $smoke -eq 1 ]]; then
+    out_report="$W/crossmatch_qsvencc_smoke.txt"
+    max_candidates=15
+  else
+    out_report="$W/crossmatch_qsvencc.txt"
+    max_candidates=0
+  fi
+  : > "$out_report"
+
+  local -a worklist=()
+  for it in "${corrupt_923_its[@]}"; do worklist+=("923:$it"); done
+  for it in "${corrupt_1129_its[@]}"; do worklist+=("1129:$it"); done
+
+  if [[ $smoke -eq 1 && ${#worklist[@]} -gt 0 ]]; then
+    worklist=("${worklist[0]}")
+  fi
+
+  local total="${#worklist[@]}"
+  local done_count=0 confirmed=0 ambiguous=0 generic=0 novalid=0
+  local entry sc it_lbl corrupt_png otherA_sc otherB_sc otherA_obu otherB_obu
+
+  for entry in "${worklist[@]}"; do
+    sc="${entry%%:*}"; it_lbl="${entry#*:}"
+    done_count=$((done_count + 1))
+    echo "-- [$done_count/$total] cross-matching it$it_lbl scene $sc --"
+    corrupt_png="$(_ccm_corrupt_png_path "$sc" "$it_lbl")" || exit 1
+    case "$sc" in
+      923) otherA_sc=928; otherB_sc=1129 ;;
+      1129) otherA_sc=923; otherB_sc=928 ;;
+    esac
+    otherA_obu="$W/runs/it$it_lbl/c${otherA_sc}.obu"
+    otherB_obu="$W/runs/it$it_lbl/c${otherB_sc}.obu"
+
+    if content_cross_match "it$it_lbl-$sc" "$corrupt_png" "$otherA_sc" "$otherA_obu" "$otherB_sc" "$otherB_obu" "$out_report" "$max_candidates"; then
+      local last_line
+      last_line="$(tail -n1 "$out_report")"
+      case "$last_line" in
+        *"verdict=CONFIRMED"*) confirmed=$((confirmed + 1)) ;;
+        *"verdict=AMBIGUOUS"*) ambiguous=$((ambiguous + 1)) ;;
+        *"verdict=GENERIC"*) generic=$((generic + 1)) ;;
+        *) novalid=$((novalid + 1)) ;;
+      esac
+    else
+      echo "WARN: content_cross_match failed for it$it_lbl scene $sc -- see stderr above" >&2
+      novalid=$((novalid + 1))
+    fi
+  done
+
+  {
+    echo
+    echo "=============================================================================="
+    if [[ $smoke -eq 1 ]]; then
+      echo "AGGREGATE VERDICT (SMOKE): $total corrupt frame(s) cross-matched"
+    else
+      echo "AGGREGATE VERDICT (FULL): $total corrupt frame(s) cross-matched"
+    fi
+    echo "  confirmed cross-session content swap (>=35 dB): $confirmed"
+    echo "  ambiguous origin (20-35 dB or within-2dB tie):  $ambiguous"
+    echo "  generic garbage / no cross-scene origin (<20 dB): $generic"
+    echo "  no valid candidates (fail-closed):               $novalid"
+    if [[ $smoke -eq 0 ]]; then
+      if [[ $total -gt 0 && $confirmed -eq $total ]]; then
+        echo "  -> Phase 1's deferred Mechanism-vs-symptom NOTE is CLOSED: every historical"
+        echo "     qsvencc corrupt frame is a confirmed cross-session content swap."
+      elif [[ $confirmed -gt 0 ]]; then
+        echo "  -> Phase 1's deferred Mechanism-vs-symptom NOTE is PARTIALLY closed:"
+        echo "     $confirmed/$total corrupt frames confirmed as cross-session content swaps;"
+        echo "     the remainder scored ambiguous/generic (see per-frame lines above)."
+      else
+        echo "  -> Phase 1's deferred Mechanism-vs-symptom NOTE is NOT closed by this scan:"
+        echo "     no corrupt frame scored >=35 dB against a concurrent scene."
+      fi
+    fi
+    echo "=============================================================================="
+  } | tee -a "$out_report"
+}
+
+# ---------------------------------------------------------------------------
 # print_batch_summary -- read report.csv and print the corruption-rate
 # summary (REPRO-05): raw X/N_actual + 95% Wilson CI for the primary
 # hotspot, confirmatory fractions for the other two hotspots, N_actual vs
@@ -1544,8 +1960,12 @@ main() {
       shift
       cmd_run_batch_vaapi "${1:-20}"
       ;;
+    cross-match-qsvencc)
+      shift
+      cmd_cross_match_qsvencc "${1:-}"
+      ;;
     *)
-      echo "Usage: $0 {probe|probe-vaapi|reference|reference-vaapi|run-iter <N>|run-batch [N=20]|run-iter-vaapi <N>|run-batch-vaapi [N=20]}" >&2
+      echo "Usage: $0 {probe|probe-vaapi|reference|reference-vaapi|run-iter <N>|run-batch [N=20]|run-iter-vaapi <N>|run-batch-vaapi [N=20]|cross-match-qsvencc [--smoke]}" >&2
       exit 2
       ;;
   esac
