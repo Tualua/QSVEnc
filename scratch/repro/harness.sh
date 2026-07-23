@@ -155,20 +155,15 @@ cmd_reference() {
     || { echo "ABORT: reference frame extraction failed" >&2; exit 1; }
   echo "reference frame extracted: $W/reference/frame299_ref.png"
 
-  # Once-only ffmpeg av1_qsv control reference (D-06, review concern 5 --
-  # must NOT be re-encoded inside run-iter). Guard with an existence check.
-  if [[ -f "$W/control_reference/c923_ffref.obu" ]]; then
-    echo "control reference already exists, skipping re-encode: $W/control_reference/c923_ffref.obu"
-  else
-    echo "== reference: ffmpeg av1_qsv control reference (scene 923) =="
-    require_gpu_exclusive || { echo "ABORT: control-reference step requires exclusive GPU access" >&2; exit 1; }
-    ctrl_encode "$SCENE_923_SEEK" 339 "$W/control_reference/c923_ffref.obu" \
-      || { echo "ABORT: control reference encode failed" >&2; exit 1; }
-    ffmpeg -y -nostdin -i "$W/control_reference/c923_ffref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
-      "$W/control_reference/ffref_299.png" -hide_banner -loglevel error \
-      || { echo "ABORT: control reference frame extraction failed" >&2; exit 1; }
-    echo "control reference generated: $W/control_reference/c923_ffref.obu"
-  fi
+  # Once-only ffmpeg av1_qsv control references for ALL THREE control scenes
+  # (D-06, review concern 5; WR-04 -- control immunity must be PSNR-validated
+  # per-scene, not 923-only). Each is guarded with an existence check inside
+  # the helper and must NOT be re-encoded inside run-iter.
+  local cscene
+  for cscene in 923 928 1129; do
+    ensure_control_reference "$cscene" \
+      || { echo "ABORT: control reference generation for scene $cscene failed" >&2; exit 1; }
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -225,6 +220,60 @@ scene_ref_png() {
     928) echo "$W/reference/frame96_928_ref.png" ;;
     1129) echo "$W/reference/frame299_1129_ref.png" ;;
   esac
+}
+
+# Control (ffmpeg av1_qsv) per-scene lookups (WR-04): the frame count passed
+# to ctrl_encode, the once-only control-reference OBU, and its extracted
+# control-reference PNG. All three control scenes are PSNR-validated, so each
+# needs its own control reference -- not just 923.
+ctrl_frames() {
+  case "$1" in
+    923) echo 339 ;;
+    928) echo 110 ;;
+    1129) echo 361 ;;
+    *) echo "unknown scene: $1" >&2; return 1 ;;
+  esac
+}
+ctrl_ref_obu() {
+  case "$1" in
+    923) echo "$W/control_reference/c923_ffref.obu" ;;
+    928) echo "$W/control_reference/c928_ffref.obu" ;;
+    1129) echo "$W/control_reference/c1129_ffref.obu" ;;
+    *) echo "unknown scene: $1" >&2; return 1 ;;
+  esac
+}
+ctrl_ref_png() {
+  case "$1" in
+    923) echo "$W/control_reference/ffref_299.png" ;;
+    928) echo "$W/control_reference/ffref_96_928.png" ;;
+    1129) echo "$W/control_reference/ffref_299_1129.png" ;;
+    *) echo "unknown scene: $1" >&2; return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# ensure_control_reference -- generate a scene's once-only ffmpeg av1_qsv
+# control reference (immune-control OBU + extracted hotspot frame) if it does
+# not already exist (WR-04). Mirrors the 923 control reference for 928/1129 so
+# every control scene can be PSNR-validated. Gated by require_gpu_exclusive.
+# ---------------------------------------------------------------------------
+ensure_control_reference() {
+  local scene="$1" obu png frames seek off
+  obu="$(ctrl_ref_obu "$scene")"; png="$(ctrl_ref_png "$scene")"
+  frames="$(ctrl_frames "$scene")"; seek="$(scene_seek "$scene")"; off="$(scene_offset "$scene")"
+  if [[ -f "$obu" && -f "$png" ]]; then
+    echo "control reference for scene $scene already exists, skipping re-encode: $obu"
+    return 0
+  fi
+  echo "== reference: ffmpeg av1_qsv control reference (scene $scene) =="
+  require_gpu_exclusive || { echo "ABORT: control-reference step requires exclusive GPU access" >&2; return 1; }
+  ctrl_encode "$seek" "$frames" "$obu" \
+    || { echo "ABORT: control reference encode for scene $scene failed" >&2; return 1; }
+  ffmpeg -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
+    "$png" -hide_banner -loglevel error \
+    || { echo "ABORT: control reference frame extraction for scene $scene failed" >&2; return 1; }
+  echo "control reference generated for scene $scene: $obu"
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -416,15 +465,33 @@ cmd_run_iter() {
   elif [[ $cr1 -ne 0 || $cr2 -ne 0 || $cr3 -ne 0 ]]; then
     control_clean="0"
   else
-    local ctrl_psnr
-    ffmpeg -y -nostdin -i "$ctrl_dir/c923.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
-      "$ctrl_dir/frame299.png" -hide_banner -loglevel error
-    ctrl_psnr="$(psnr_of "$ctrl_dir/frame299.png" "$W/control_reference/ffref_299.png" "$ctrl_dir/psnr.log")"
-    if [[ "$ctrl_psnr" == "inf" ]]; then
-      control_clean="1"
-    else
-      control_clean="$(awk -v p="$ctrl_psnr" 'BEGIN { print (p+0 >= 30) ? 1 : 0 }')"
-    fi
+    # WR-04: PSNR-validate EVERY control scene against its own control
+    # reference; the control is "clean" (1) only if all three are >= 30 dB.
+    # A missing/empty control PSNR is a measurement failure and is treated
+    # conservatively as NOT clean (matching CR-01's fail-safe direction),
+    # so a scene-dependent control corruption can never pass silently.
+    local cscene coff cpng cref cpsnr
+    control_clean="1"
+    for cscene in 923 928 1129; do
+      coff="$(scene_offset "$cscene")"
+      cref="$(ctrl_ref_png "$cscene")"
+      cpng="$ctrl_dir/ctrl_frame_${cscene}.png"
+      if ! ffmpeg -y -nostdin -i "$ctrl_dir/c${cscene}.obu" -vf "select='eq(n\,$coff)'" -vsync 0 -frames:v 1 \
+           "$cpng" -hide_banner -loglevel error || [[ ! -s "$cpng" ]]; then
+        echo "control scene $cscene: frame extraction failed -> control NOT clean"
+        control_clean="0"; continue
+      fi
+      cpsnr="$(psnr_of "$cpng" "$cref" "$ctrl_dir/ctrl_psnr_${cscene}.log")"
+      if [[ "$cpsnr" == "inf" ]]; then
+        : # byte-identical to the control reference -> clean
+      elif [[ -z "$cpsnr" ]]; then
+        echo "control scene $cscene: empty PSNR measurement -> control NOT clean"
+        control_clean="0"
+      elif [[ "$(awk -v p="$cpsnr" 'BEGIN { print (p+0 >= 30) ? 1 : 0 }')" != "1" ]]; then
+        echo "control scene $cscene: psnr=$cpsnr < 30 dB -> control NOT clean"
+        control_clean="0"
+      fi
+    done
   fi
 
   if [[ "$control_clean" == "1" ]]; then
