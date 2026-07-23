@@ -18,7 +18,7 @@ Requirements for this investigation milestone. Each maps to a roadmap phase.
 ### Host-Side Diagnosis
 
 - [ ] **DIAG-01**: Empirically determine and record what host-side changes are possible from this environment (kernel cmdline/modprobe, firmware, reboot, privilege level) — so blocked levers are reported honestly rather than silently skipped.
-- [ ] **DIAG-02**: Test the pure VA-API `av1_vaapi` encode path (bypassing oneVPL) as an in-container triangulation data point under the same 3-way concurrency, with the paired immune control. (In progress — plan 02-01 built the command builder, D-02 capability probe, and self-reference; the 3-way concurrency measurement itself is plans 02-02..02-05.)
+- [x] **DIAG-02**: Test the pure VA-API `av1_vaapi` encode path (bypassing oneVPL) as an in-container triangulation data point under the same 3-way concurrency, with the paired immune control. (Complete — detection-N=20: 0/20 corrupt on all three scenes, paired av1_qsv control clean 0/20, but only a PARTIAL trigger triad (B-frame reorder UNSUPPORTED on this Arc A380's LP-only AV1 entrypoint); recorded as "immunity NOT proven" per D-03. See `02-EVIDENCE.md`.)
 - [ ] **DIAG-03**: Test the effect of a GuC/HuC firmware update on corruption rate (host-side, reversible), with a before/after paired control and single-variable isolation.
 - [ ] **DIAG-04**: Test the `i915`→`Xe` driver switch (`force_probe` on PCI `56a5`) — gated on first confirming the same low-power AV1 encode path is still active (dmesg GuC/HuC lines + iHD logging) before any "clean" result is trusted, so a silently disabled HW-encode path is not mistaken for a fix.
 - [ ] **DIAG-05**: Every lever changes exactly one variable per reboot cycle with its own before/after control pair; results are attributed only under single-variable isolation.
@@ -72,7 +72,7 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 | REPRO-04 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (report.csv `control_clean` column, all 1; summary.txt "0/20" control line) |
 | REPRO-05 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (summary.txt: 923/299 9/20 45.0% CI [0.258,0.658], 1129/299 8/20 40.0%, 928/96 0/20, N_requested=20/N_actual=20, detection-N vs validation-N statement) |
 | DIAG-01 | Phase 3 | Pending |
-| DIAG-02 | Phase 2 | In progress — plan 02-01 complete (`02-01-SUMMARY.md`: vaapi_encode() builder, D-02 triad probe PARTIAL-TRIAD result, determinism-confirmed self-reference for 923/928/1129); plans 02-02..02-05 (3-way concurrency measurement + paired control) pending |
+| DIAG-02 | Phase 2 | Complete — `02-EVIDENCE.md` (detection-N=20: 0/20 corrupt all three scenes, paired av1_qsv control clean 0/20, D-02 triad PARTIAL (reorder UNSUPPORTED, P010/hw_decode ACTIVE), explicit SC#2 interpretation "immunity NOT proven", triangulated against 01-EVIDENCE.md qsvencc baseline, qsvencc cross-session-swap mechanism note stays OPEN) |
 | DIAG-03 | Phase 3 | Pending |
 | DIAG-04 | Phase 3 | Pending |
 | DIAG-05 | Phase 3 | Pending |
