@@ -266,6 +266,168 @@ ctrl_ref_png() {
 }
 
 # ---------------------------------------------------------------------------
+# vaapi_encode -- full-HW ffmpeg VAAPI av1_vaapi encode helper (Phase 2 D-01).
+# Mirrors ctrl_encode()'s structure exactly: logfile derived from the output
+# path, wrapped in run_encode, -ss placed BEFORE -i (Pitfall 3 -- accurate-
+# seek mode on a deep-timeline scene would otherwise blow ENCODE_TIMEOUT),
+# flags-then-output-then-loglevel arg order.
+#
+# scale_vaapi=format=p010:extra_hw_frames=64 (NOT vpp_qsv, NOT
+# format=p010,hwupload) is the only correct HW-frame-to-HW-frame P010
+# conversion for a -hwaccel_output_format vaapi decoded input (Pitfall 3 in
+# 02-RESEARCH.md numbering / State of the Art). extra_hw_frames=64 is
+# MANDATORY: without it, any -frames:v-bounded scale_vaapi pipeline throws a
+# spurious nonzero exit (244, "Cannot allocate memory") on otherwise-valid
+# output (Pitfall 2), which run_encode's fail-closed exit gate would
+# misclassify as EXEC_FAILURE for every single av1_vaapi iteration.
+#
+# Usage: vaapi_encode <seek> <frames> <out>
+# ---------------------------------------------------------------------------
+vaapi_encode() {
+  local seek="$1" frames="$2" out="$3"
+  local logfile="${out%.obu}.log"
+  run_encode "$logfile" ffmpeg -y -nostdin -hwaccel vaapi -hwaccel_output_format vaapi -vaapi_device /dev/dri/renderD128 \
+    -ss "$seek" -i "$SRC" -frames:v "$frames" \
+    -vf "scale_vaapi=format=p010:extra_hw_frames=64" \
+    -c:v av1_vaapi -profile:v main -low_power 1 -g 300 -bf 5 -b_depth 3 -refs 4 -rc_mode ICQ -global_quality 24 -tiles 1x1 \
+    "$out" -hide_banner -loglevel error
+}
+
+# av1_vaapi self-reference per-scene lookups (D-04). Filenames are
+# DELIBERATELY distinct from scene_ref_obu/scene_ref_png (the qsvencc
+# reference) -- Pitfall 6: a different encoder produces different clean
+# pixels, so reusing the qsvencc reference would make every av1_vaapi frame
+# look corrupt regardless of the real concurrency bug.
+vaapi_ref_obu() {
+  case "$1" in
+    923) echo "$W/reference/chunk923_vaapi_ref.obu" ;;
+    928) echo "$W/reference/chunk928_vaapi_ref.obu" ;;
+    1129) echo "$W/reference/chunk1129_vaapi_ref.obu" ;;
+    *) echo "unknown scene: $1" >&2; return 1 ;;
+  esac
+}
+vaapi_ref_png() {
+  case "$1" in
+    923) echo "$W/reference/frame299_vaapi_ref.png" ;;
+    928) echo "$W/reference/frame96_928_vaapi_ref.png" ;;
+    1129) echo "$W/reference/frame299_1129_vaapi_ref.png" ;;
+    *) echo "unknown scene: $1" >&2; return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# cmd_probe_vaapi -- D-02 "probe -> run -> caveat" trigger-triad leg probe.
+# Empirically determines, on THIS hardware, which of the three trigger-triad
+# legs av1_vaapi can actually reproduce:
+#   (a) B-frame reorder    -- PTS/DTS equality test on a remuxed-with-real-
+#                              timestamps copy (Pattern 1). NEVER pict_type
+#                              (Pitfall 1: AV1 has no native B-slice concept,
+#                              pict_type cannot distinguish true reordering
+#                              from ordinary P). NEVER the encoder's own
+#                              capability log line either (Pitfall 4).
+#   (b) P010 10-bit        -- ffprobe pix_fmt == yuv420p10le.
+#   (c) HW-VA video-memory decode -- confirmed by the absence of hwdownload
+#                              in the filtergraph AND a successful full-HW
+#                              encode actually completing (not just a static
+#                              string check).
+# A failed/unreadable leg is recorded UNKNOWN, never silently folded into
+# UNSUPPORTED (CR-01 fail-closed lineage, T-02-03). Writes
+# reorder/p010/hw_decode verdicts to vaapi_probe.txt.
+#
+# Top-level cmd_* entry point (main() dispatches here): the only vaapi
+# function in this probe path allowed to exit; everything else is a plain
+# encode/ffprobe/awk pipeline.
+# ---------------------------------------------------------------------------
+cmd_probe_vaapi() {
+  require_gpu_exclusive || { echo "ABORT: probe-vaapi requires exclusive GPU access" >&2; exit 1; }
+
+  echo "== probe-vaapi: av1_vaapi trigger-triad leg probe (scene 923, 100 frames) =="
+  local probe_mkv="$W/probe_reorder.mkv"
+  local vf_string="scale_vaapi=format=p010:extra_hw_frames=64"
+  run_encode "$W/probe_reorder.log" ffmpeg -y -nostdin -hwaccel vaapi -hwaccel_output_format vaapi -vaapi_device /dev/dri/renderD128 \
+    -ss "$SCENE_923_SEEK" -i "$SRC" -frames:v 100 \
+    -vf "$vf_string" \
+    -c:v av1_vaapi -profile:v main -low_power 1 -g 300 -bf 5 -b_depth 3 -refs 4 -rc_mode ICQ -global_quality 24 -r 24 \
+    "$probe_mkv" -hide_banner -loglevel error
+  local probe_rc=$?
+
+  local reorder_verdict p010_verdict hwdecode_verdict
+
+  if [[ $probe_rc -ne 0 || ! -s "$probe_mkv" ]]; then
+    echo "probe-vaapi: probe encode failed (exit $probe_rc) or produced empty output -- see $W/probe_reorder.log"
+    reorder_verdict="UNKNOWN"
+    p010_verdict="UNKNOWN"
+    hwdecode_verdict="UNKNOWN"
+  else
+    # Leg (a): B-frame reorder -- ANY pts!=dts row is proof of real
+    # reordering; all-equal is proof none occurred. Never pict_type.
+    #
+    # ffprobe field-name gotcha (found live, empirically, in this session):
+    # "frame=pts,dts" silently drops the "dts" token -- ffprobe's real
+    # per-frame decode-timestamp field is "pkt_dts", not "dts". Requesting
+    # the bare "dts" field name does not error; it just produces a single
+    # (pts-only) CSV column, which made every frame look mismatched
+    # (pts!="" is always true) -- a false ACTIVE verdict on every run,
+    # confirmed by directly comparing "frame=pts,dts" against
+    # "frame=pts,dts,pkt_dts" output on this exact probe file. Requesting
+    # "pts,dts,pkt_dts" keeps the literal "pts,dts" token pairing (for
+    # continuity with the documented probe recipe) while ffprobe silently
+    # ignores the invalid "dts" and emits a real two-column pts,pkt_dts CSV.
+    local reorder_csv
+    reorder_csv="$(ffprobe -v error -select_streams v:0 -show_entries frame=pts,dts,pkt_dts -of csv=p=0 "$probe_mkv" 2>/dev/null)"
+    if [[ -z "$reorder_csv" ]]; then
+      echo "probe-vaapi: ffprobe pts/dts read failed -- leg (a) UNKNOWN"
+      reorder_verdict="UNKNOWN"
+    else
+      local mismatch_count
+      mismatch_count="$(echo "$reorder_csv" | awk -F, '$1!=$2{c++} END{print c+0}')"
+      if [[ "$mismatch_count" -gt 0 ]]; then
+        reorder_verdict="ACTIVE"
+      else
+        reorder_verdict="UNSUPPORTED"
+      fi
+    fi
+
+    # Leg (b): P010 10-bit confirmation.
+    local pix_fmt
+    pix_fmt="$(ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt -of csv=p=0 "$probe_mkv" 2>/dev/null)"
+    if [[ -z "$pix_fmt" ]]; then
+      echo "probe-vaapi: ffprobe pix_fmt read failed -- leg (b) UNKNOWN"
+      p010_verdict="UNKNOWN"
+    elif [[ "$pix_fmt" == "yuv420p10le" ]]; then
+      p010_verdict="ACTIVE"
+    else
+      p010_verdict="UNSUPPORTED"
+    fi
+
+    # Leg (c): HW-VA video-memory decode -- the probe pipeline's own filter
+    # string must not contain hwdownload (which would mean frames left VA
+    # surfaces for system RAM), and the encode above must have actually
+    # completed successfully on that pipeline.
+    if [[ "$vf_string" == *hwdownload* ]]; then
+      hwdecode_verdict="UNSUPPORTED"
+    else
+      hwdecode_verdict="ACTIVE"
+    fi
+  fi
+
+  {
+    echo "# av1_vaapi trigger-triad leg probe (D-02), scene 923, 100 frames"
+    echo "reorder: $reorder_verdict"
+    echo "p010: $p010_verdict"
+    echo "hw_decode: $hwdecode_verdict"
+    if [[ "$reorder_verdict" == "ACTIVE" && "$p010_verdict" == "ACTIVE" && "$hwdecode_verdict" == "ACTIVE" ]]; then
+      echo "triad: FULL-TRIAD"
+    else
+      echo "triad: PARTIAL-TRIAD (immunity NOT proven for any UNSUPPORTED/UNKNOWN leg -- D-03)"
+    fi
+  } > "$W/vaapi_probe.txt"
+
+  echo "probe-vaapi result:"
+  cat "$W/vaapi_probe.txt"
+}
+
+# ---------------------------------------------------------------------------
 # ensure_control_reference -- generate a scene's once-only ffmpeg av1_qsv
 # control reference (immune-control OBU + extracted hotspot frame) if it does
 # not already exist (WR-04). Mirrors the 923 control reference for 928/1129 so
@@ -777,6 +939,9 @@ main() {
     probe)
       cmd_probe
       ;;
+    probe-vaapi)
+      cmd_probe_vaapi
+      ;;
     reference)
       cmd_reference
       ;;
@@ -789,7 +954,7 @@ main() {
       cmd_run_batch "${1:-20}"
       ;;
     *)
-      echo "Usage: $0 {probe|reference|run-iter <N>|run-batch [N=20]}" >&2
+      echo "Usage: $0 {probe|probe-vaapi|reference|run-iter <N>|run-batch [N=20]}" >&2
       exit 2
       ;;
   esac
