@@ -629,6 +629,193 @@ cmd_reference_vaapi() {
 }
 
 # ---------------------------------------------------------------------------
+# cmd_run_iter_vaapi <N> -- one full end-to-end av1_vaapi concurrency
+# iteration (Phase 2 DIAG-02). Structural copy of cmd_run_iter's four-step
+# shape, swapping the measurement encoder to vaapi_encode() and the
+# classification reference to the av1_vaapi self-reference (vaapi_ref_png,
+# NOT scene_ref_png -- Pitfall 6). The paired ffmpeg av1_qsv immune control
+# (ctrl_encode) is UNCHANGED (D-11).
+#
+#   1. 3-way concurrent av1_vaapi measurement (923/928/1129) into
+#      $W/vaapi_runs/it$n, per-encode timeout, per-PID exit capture. PIDs are
+#      named vp1/vp2/vp3 (NOT p1/p2/p3) so they never collide with the
+#      control block's PID variables in the shared INT/TERM trap. Because the
+#      extra_hw_frames=64 fix lives inside vaapi_encode() (02-01), a valid
+#      encode exits 0 -- this gate is never loosened. Non-zero/timeout ->
+#      EXEC_FAILURE/TIMEOUT, skip PSNR, emit NA rows, do not run the control,
+#      return non-zero.
+#   2. Multi-scene PSNR classification against vaapi_ref_png (the av1_vaapi
+#      self-reference), reusing psnr_of()/classify_corrupt() verbatim
+#      (D-06). A failed extraction / empty PSNR is MEASURE_FAILURE (CR-01
+#      fail-closed).
+#   3. Paired ffmpeg av1_qsv immune control, SEQUENTIAL-AFTER the av1_vaapi
+#      measurement, as its own separate 3-way run into
+#      $W/control_runs/it$n -- identical to cmd_run_iter's control block,
+#      calling ctrl_encode() unchanged (D-11). A non-clean/timed-out control
+#      sets status=CONTROL_INVALID for every row of this iteration.
+#   4. cleanup_gpu_procs() to avoid tripping the next iteration's gate.
+# Emits one row per scene per iteration with the SAME schema as Phase 1:
+# iteration,scene,offset,status,psnr_db,corrupt,control_clean.
+# ---------------------------------------------------------------------------
+cmd_run_iter_vaapi() {
+  local n="$1"
+  local it_dir="$W/vaapi_runs/it$n"
+  local ctrl_dir="$W/control_runs/it$n"
+  mkdir -p "$it_dir" "$ctrl_dir"
+  local result_file="$it_dir/result.csv"
+  : > "$result_file"
+
+  # WR-01 (carried): kill any launched background PIDs and reap GPU clients
+  # on INT/TERM. vp1/vp2/vp3 are the av1_vaapi measurement PIDs, distinct
+  # from cp1/cp2/cp3 (the control PIDs) so neither block shadows the other.
+  trap 'for _pid in "${vp1:-}" "${vp2:-}" "${vp3:-}" "${cp1:-}" "${cp2:-}" "${cp3:-}"; do [[ -n "$_pid" ]] && kill "$_pid" 2>/dev/null || true; done; cleanup_gpu_procs' INT TERM
+
+  # --- Step 1: 3-way concurrent av1_vaapi measurement ---
+  vaapi_encode "$SCENE_923_SEEK" "$(ctrl_frames 923)" "$it_dir/c923.obu" &
+  local vp1=$!
+  vaapi_encode "$SCENE_928_SEEK" "$(ctrl_frames 928)" "$it_dir/c928.obu" &
+  local vp2=$!
+  vaapi_encode "$SCENE_1129_SEEK" "$(ctrl_frames 1129)" "$it_dir/c1129.obu" &
+  local vp3=$!
+  wait "$vp1"; local r1=$?
+  wait "$vp2"; local r2=$?
+  wait "$vp3"; local r3=$?
+
+  local meas_status="OK"
+  if [[ $r1 -eq 124 || $r2 -eq 124 || $r3 -eq 124 ]]; then
+    meas_status="TIMEOUT"
+  elif [[ $r1 -ne 0 || $r2 -ne 0 || $r3 -ne 0 ]]; then
+    meas_status="EXEC_FAILURE"
+  fi
+  echo "vaapi iteration $n measurement exit codes: 923=$r1 928=$r2 1129=$r3 status=$meas_status"
+
+  if [[ "$meas_status" != "OK" ]]; then
+    local scene off
+    for scene in 923 928 1129; do
+      off="$(scene_offset "$scene")"
+      echo "$n,$scene,$off,$meas_status,NA,NA,NA" >> "$result_file"
+    done
+    cleanup_gpu_procs
+    cat "$result_file"
+    return 1
+  fi
+
+  # --- Step 2: multi-scene PSNR classification vs the av1_vaapi self-reference ---
+  declare -A psnr_db corrupt meas_fail
+  local scene ref_fail=0
+  for scene in 923 928 1129; do
+    ensure_vaapi_reference "$scene" || { ref_fail=1; break; }
+  done
+  if [[ $ref_fail -ne 0 ]]; then
+    local off
+    for scene in 923 928 1129; do
+      off="$(scene_offset "$scene")"
+      echo "$n,$scene,$off,EXEC_FAILURE,NA,NA,NA" >> "$result_file"
+    done
+    cleanup_gpu_procs
+    cat "$result_file"
+    return 1
+  fi
+
+  local off obu ref_png test_png statsfile
+  for scene in 923 928 1129; do
+    off="$(scene_offset "$scene")"
+    case "$scene" in
+      923) obu="$it_dir/c923.obu"; test_png="$it_dir/frame299.png"; statsfile="$it_dir/psnr.log" ;;
+      928) obu="$it_dir/c928.obu"; test_png="$it_dir/frame96_928.png"; statsfile="$it_dir/psnr_928.log" ;;
+      1129) obu="$it_dir/c1129.obu"; test_png="$it_dir/frame299_1129.png"; statsfile="$it_dir/psnr_1129.log" ;;
+    esac
+    ref_png="$(vaapi_ref_png "$scene")"
+    # CR-01: a *failed* frame extraction is the strongest corruption signal.
+    # Must NEVER fall through to a clean score -- explicit MEASURE_FAILURE.
+    if ! ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
+         "$test_png" -hide_banner -loglevel error || [[ ! -s "$test_png" ]]; then
+      psnr_db[$scene]="NA"; corrupt[$scene]="NA"; meas_fail[$scene]=1
+      echo "vaapi scene $scene offset $off: MEASURE_FAILURE (frame extraction failed / test frame missing)"
+      continue
+    fi
+    local raw
+    raw="$(psnr_of "$test_png" "$ref_png" "$statsfile")"
+    if [[ -z "$raw" ]]; then
+      psnr_db[$scene]="NA"; corrupt[$scene]="NA"; meas_fail[$scene]=1
+      echo "vaapi scene $scene offset $off: MEASURE_FAILURE (empty PSNR measurement)"
+      continue
+    fi
+    psnr_db[$scene]="$raw"; corrupt[$scene]="$(classify_corrupt "$raw")"
+    meas_fail[$scene]=0
+    echo "vaapi scene $scene offset $off: psnr_db=${psnr_db[$scene]} corrupt=${corrupt[$scene]}"
+  done
+
+  # --- Step 3: paired ffmpeg av1_qsv immune control, sequential-after,
+  #     UNCHANGED (D-11) -- identical to cmd_run_iter's own control block ---
+  ctrl_encode "$SCENE_923_SEEK" 339 "$ctrl_dir/c923.obu" &
+  local cp1=$!
+  ctrl_encode "$SCENE_928_SEEK" 110 "$ctrl_dir/c928.obu" &
+  local cp2=$!
+  ctrl_encode "$SCENE_1129_SEEK" 361 "$ctrl_dir/c1129.obu" &
+  local cp3=$!
+  wait "$cp1"; local cr1=$?
+  wait "$cp2"; local cr2=$?
+  wait "$cp3"; local cr3=$?
+
+  local control_clean status_final
+  if [[ $cr1 -eq 124 || $cr2 -eq 124 || $cr3 -eq 124 ]]; then
+    control_clean="TIMEOUT"
+  elif [[ $cr1 -ne 0 || $cr2 -ne 0 || $cr3 -ne 0 ]]; then
+    control_clean="0"
+  else
+    # WR-04 (carried): PSNR-validate EVERY control scene against its own
+    # control reference; clean (1) only if all three are >= 30 dB. A
+    # missing/empty control PSNR is treated conservatively as NOT clean.
+    local cscene coff cpng cref cpsnr
+    control_clean="1"
+    for cscene in 923 928 1129; do
+      coff="$(scene_offset "$cscene")"
+      cref="$(ctrl_ref_png "$cscene")"
+      cpng="$ctrl_dir/ctrl_frame_${cscene}.png"
+      if ! ff_bounded -y -nostdin -i "$ctrl_dir/c${cscene}.obu" -vf "select='eq(n\,$coff)'" -vsync 0 -frames:v 1 \
+           "$cpng" -hide_banner -loglevel error || [[ ! -s "$cpng" ]]; then
+        echo "vaapi-batch control scene $cscene: frame extraction failed -> control NOT clean"
+        control_clean="0"; continue
+      fi
+      cpsnr="$(psnr_of "$cpng" "$cref" "$ctrl_dir/ctrl_psnr_${cscene}.log")"
+      if [[ "$cpsnr" == "inf" ]]; then
+        : # byte-identical to the control reference -> clean
+      elif [[ -z "$cpsnr" ]]; then
+        echo "vaapi-batch control scene $cscene: empty PSNR measurement -> control NOT clean"
+        control_clean="0"
+      elif [[ "$(awk -v p="$cpsnr" 'BEGIN { print (p+0 >= 30) ? 1 : 0 }')" != "1" ]]; then
+        echo "vaapi-batch control scene $cscene: psnr=$cpsnr < 30 dB -> control NOT clean"
+        control_clean="0"
+      fi
+    done
+  fi
+
+  if [[ "$control_clean" == "1" ]]; then
+    status_final="OK"
+  else
+    status_final="CONTROL_INVALID"
+  fi
+  echo "vaapi iteration $n control exit codes: 923=$cr1 928=$cr2 1129=$cr3 control_clean=$control_clean status=$status_final"
+
+  for scene in 923 928 1129; do
+    off="$(scene_offset "$scene")"
+    if [[ "${meas_fail[$scene]}" == "1" ]]; then
+      echo "$n,$scene,$off,MEASURE_FAILURE,NA,NA,$control_clean" >> "$result_file"
+    elif [[ "$status_final" == "OK" ]]; then
+      echo "$n,$scene,$off,OK,${psnr_db[$scene]},${corrupt[$scene]},$control_clean" >> "$result_file"
+    else
+      echo "$n,$scene,$off,CONTROL_INVALID,NA,NA,$control_clean" >> "$result_file"
+    fi
+  done
+
+  cleanup_gpu_procs
+  cat "$result_file"
+
+  [[ "$status_final" == "OK" ]]
+}
+
+# ---------------------------------------------------------------------------
 # run-iter <N> -- one full end-to-end iteration (REPRO-02, REPRO-03, REPRO-04).
 #   1. 3-way concurrent qsvencc measurement (923/928/1129), per-encode timeout,
 #      per-PID exit capture. Non-zero/timeout -> EXEC_FAILURE/TIMEOUT, skip
