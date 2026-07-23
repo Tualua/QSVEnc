@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-07-23T10:02:47.639Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-07-23T10:22:43.429Z"
 last_activity: 2026-07-23 -- Phase 02 execution started
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 20
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 02 (in-container-triangulation-av1-vaapi) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Executing Phase 02
 Last activity: 2026-07-23 -- Phase 02 execution started
 
-Progress: [██████░░░░] 57%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [██████░░░░] 57%
 | Phase 01 P02 | 20min | 3 tasks | 3 files |
 | Phase 02 P01 | 20min | 2 tasks | 1 files |
 | Phase 02 P02 | 15min | 2 tasks | 1 files |
+| Phase 02 P03 | 20min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,7 @@ Recent decisions affecting current work:
 - [Phase 02]: Fixed broken ffprobe 'dts' field name in D-02 reorder probe (real field is pkt_dts); documented recipe would have produced a false ACTIVE reorder verdict on every frame
 - [Phase 02]: Extended run-batch-vaapi reference preflight to require both av1_vaapi self-references and av1_qsv control references before starting
 - [Phase 02]: Live 2-iteration smoke run confirmed Assumption A2 -- extra_hw_frames=64 holds under real 3-way concurrent contention, zero EXEC_FAILURE
+- [Phase 02]: Live detection-N=20 av1_vaapi batch (03): 0/20 corrupt all three scenes, control 0/20 clean, PARTIAL-TRIAD (reorder unsupported), gated verdict do-NOT-escalate, immunity NOT proven (D-08/D-03)
 
 ### Pending Todos
 
@@ -92,6 +94,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-23T10:02:47.616Z
-Stopped at: Completed 02-02-PLAN.md
-Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-02-SUMMARY.md
+Last session: 2026-07-23T10:22:43.409Z
+Stopped at: Completed 02-03-PLAN.md
+Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-03-SUMMARY.md
