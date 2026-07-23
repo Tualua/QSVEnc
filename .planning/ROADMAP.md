@@ -44,7 +44,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. An `av1_vaapi` 3-way concurrent run executes through the Phase 1 harness unmodified, with its own paired ffmpeg `av1_qsv` immune control in the same run.
   2. The result (clean vs corrupt, with frequency and signature if corrupt) is recorded, with its interpretation stated explicitly (e.g. clean strengthens the ffmpeg-migration case; corrupt too broadens the suspected fault beyond qsvencc's own pool code).
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 02-01-PLAN.md — av1_vaapi command builder (D-01) + D-02 capability probe (PTS/DTS reorder, P010, HW-VA decode → vaapi_probe.txt) + determinism-confirmed av1_vaapi self-reference (D-04/D-05)
+- [ ] 02-02-PLAN.md — Concurrent av1_vaapi runner: cmd_run_iter_vaapi (3-way measure + PSNR classify + paired av1_qsv control, D-06/D-11) + cmd_run_batch_vaapi + smoke run (extra_hw_frames under concurrency, A2)
+- [ ] 02-03-PLAN.md — Detection-N=20 batch (D-07): print_batch_summary_vaapi with triad caveat, D-08 gated escalation, and explicit SC#2 interpretation; live run → report_vaapi.csv + summary_vaapi.txt
+- [ ] 02-04-PLAN.md — Content-origin cross-match (D-09/D-10): content_cross_match + cross-match-qsvencc closing Phase-1's deferred mechanism note; av1_vaapi corrupt-path wiring
+- [ ] 02-05-PLAN.md — Durable git-tracked 02-EVIDENCE.md: verbatim outputs + DIAG-02 mapping + explicit SC#2 interpretation + D-03 triad caveat + triangulation vs Phase-1 baseline
 
 ### Phase 3: Host-Side Levers — Firmware & Xe Migration
 **Mode:** mvp
@@ -90,7 +96,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
-| 2. In-Container Triangulation — av1_vaapi | 0/TBD | Not started | - |
+| 2. In-Container Triangulation — av1_vaapi | 0/5 | Planned | - |
 | 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
 | 4. Workaround Recommendation & Defense-in-Depth Gate | 0/TBD | Not started | - |
 | 5. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |
