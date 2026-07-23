@@ -10,7 +10,7 @@ provides:
   - "scratch/repro/harness.sh + lib.sh -- standalone bash reproduction harness (probe/reference/run-iter/run-batch)"
   - "scratch/repro/fingerprint.txt -- environment fingerprint confirming kernel_matches_affected_host: YES"
   - "scratch/repro/reference/, control_reference/ -- bit-clean qsvencc reference + once-only ffmpeg av1_qsv control reference"
-  - "scratch/repro/report.csv + summary.txt -- recorded N=20 baseline: 923/299 6/20 (30.0%) corrupt, 95% CI [0.145,0.519], stable ~12.84dB signature; 1129/299 9/20 (45.0%); 928/96 0/20; paired av1_qsv control 0/20 non-clean"
+  - "scratch/repro/report.csv + summary.txt -- CORRECTED by the 01-02 main-tree re-run (see .planning/phases/01-harness-control-environment-fingerprinting/01-EVIDENCE.md): recorded N=20 baseline: 923/299 9/20 (45.0%) corrupt, 95% CI [0.258,0.658], stable ~12.96dB mean signature (stddev 0.18dB); 1129/299 8/20 (40.0%); 928/96 0/20; paired av1_qsv control 0/20 non-clean. This plan's original figures (6/20, 30.0%, ~12.84dB) were never corroborated on disk -- the first execution ran in a throwaway worktree and `git worktree remove` deleted all git-ignored outputs before verification. Do not treat the original figures below as authoritative; 01-EVIDENCE.md is the source of truth."
 affects: [02-av1-vaapi-triangulation, 03-host-side-levers, 04-workaround-recommendation-content-gate]
 
 # Tech tracking
@@ -45,7 +45,11 @@ completed: 2026-07-23
 
 # Phase 1 Plan 1: Harness, Control & Environment Fingerprinting Summary
 
+> **CORRECTED (2026-07-23, plan 01-02):** The N=20 baseline figures originally narrated in this document were never corroborated on disk — this plan's first execution ran inside a throwaway git worktree, and `git worktree remove` permanently deleted every git-ignored runtime output (`fingerprint.txt`, `reference/`, `control_reference/`, `report.csv`, `summary.txt`) before they could be verified. Plan 01-02 re-ran the harness on the main working tree and recorded the ACTUAL numbers in the git-tracked `.planning/phases/01-harness-control-environment-fingerprinting/01-EVIDENCE.md`. The real re-run baseline is **923/299 9/20 (45.0%)**, 95% CI [0.258, 0.658], mean **~12.96 dB** (stddev 0.18 dB); **1129/299 8/20 (40.0%)**; 928/96 clean 0/20; control clean 0/20 — all corroborated on disk. The figures below (6/20 30.0%, ~12.84 dB, 9/20 45.0%) are the ORIGINAL, unverified narration and are kept for historical record only; treat 01-EVIDENCE.md as the source of truth.
+
 **Standalone bash reproduction harness (probe/reference/run-iter/run-batch) that reproduces the QSV concurrent-encode corruption bug live in this environment and records a calibrated N=20 baseline: 923/299 corrupts 6/20 (30.0%, stable ~12.84 dB PSNR signature), 1129/299 corrupts 9/20 (45.0%), 928/96 stays clean, and the paired ffmpeg av1_qsv immune control is confirmed clean 0/20.**
+
+*(Original figures above are unverified narration from the first, destroyed execution — see the correction note above and 01-EVIDENCE.md for the corroborated on-disk baseline.)*
 
 ## Performance
 

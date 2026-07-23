@@ -66,11 +66,11 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REPRO-01 | Phase 1 | Complete |
-| REPRO-02 | Phase 1 | Complete |
-| REPRO-03 | Phase 1 | Complete |
-| REPRO-04 | Phase 1 | Complete |
-| REPRO-05 | Phase 1 | Complete |
+| REPRO-01 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (fingerprint.txt snapshot, `kernel_matches_affected_host: YES`) |
+| REPRO-02 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (report.csv snapshot, 20 iterations x 3 scenes = 60 rows) |
+| REPRO-03 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (report.csv `psnr_db`/`corrupt` columns; observed primary-hotspot signature ~12.96 dB mean in this environment, not the handoff's ~15.74 dB — see 01-EVIDENCE.md reconciliation note) |
+| REPRO-04 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (report.csv `control_clean` column, all 1; summary.txt "0/20" control line) |
+| REPRO-05 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (summary.txt: 923/299 9/20 45.0% CI [0.258,0.658], 1129/299 8/20 40.0%, 928/96 0/20, N_requested=20/N_actual=20, detection-N vs validation-N statement) |
 | DIAG-01 | Phase 3 | Pending |
 | DIAG-02 | Phase 2 | Pending |
 | DIAG-03 | Phase 3 | Pending |
