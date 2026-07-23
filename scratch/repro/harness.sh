@@ -189,6 +189,238 @@ ctrl_encode() {
 }
 
 # ---------------------------------------------------------------------------
+# Scene table lookups (923/928/1129 -> seek, trim, offset, reference paths).
+# ---------------------------------------------------------------------------
+scene_seek() {
+  case "$1" in
+    923) echo "$SCENE_923_SEEK" ;;
+    928) echo "$SCENE_928_SEEK" ;;
+    1129) echo "$SCENE_1129_SEEK" ;;
+  esac
+}
+scene_trim() {
+  case "$1" in
+    923) echo "$SCENE_923_TRIM" ;;
+    928) echo "$SCENE_928_TRIM" ;;
+    1129) echo "$SCENE_1129_TRIM" ;;
+  esac
+}
+scene_offset() {
+  case "$1" in
+    923) echo "$SCENE_923_OFF" ;;
+    928) echo "$SCENE_928_OFF" ;;
+    1129) echo "$SCENE_1129_OFF" ;;
+  esac
+}
+scene_ref_obu() {
+  case "$1" in
+    923) echo "$W/reference/chunk923_ref.obu" ;;
+    928) echo "$W/reference/chunk928_ref.obu" ;;
+    1129) echo "$W/reference/chunk1129_ref.obu" ;;
+  esac
+}
+scene_ref_png() {
+  case "$1" in
+    923) echo "$W/reference/frame299_ref.png" ;;
+    928) echo "$W/reference/frame96_928_ref.png" ;;
+    1129) echo "$W/reference/frame299_1129_ref.png" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# ensure_scene_reference -- generate a scene's isolated reference (chunk +
+# extracted hotspot frame) if it does not already exist, mirroring Task 1's
+# 923 reference generation. Gated by require_gpu_exclusive, same as the
+# `reference` subcommand (923's own reference is normally already present
+# from `reference`; 928/1129 are generated lazily here, once, and cached).
+# ---------------------------------------------------------------------------
+ensure_scene_reference() {
+  local scene="$1" obu png seek trim off
+  obu="$(scene_ref_obu "$scene")"
+  png="$(scene_ref_png "$scene")"
+  if [[ -f "$obu" && -f "$png" ]]; then
+    return 0
+  fi
+  seek="$(scene_seek "$scene")"; trim="$(scene_trim "$scene")"; off="$(scene_offset "$scene")"
+  echo "generating missing reference for scene $scene (offset $off)..."
+  require_gpu_exclusive || { echo "ABORT: reference generation for scene $scene requires exclusive GPU access" >&2; return 1; }
+  qsvencc --avhw --va -i "$SRC" $COMMON --seek "$seek" --trim "$trim" -o "$obu" \
+    || { echo "ABORT: reference encode for scene $scene failed" >&2; return 1; }
+  ffmpeg -y -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
+    || { echo "ABORT: reference frame extraction for scene $scene failed" >&2; return 1; }
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# psnr_of -- extract PSNR (psnr_avg field) between a test PNG and a
+# reference PNG via external ffmpeg (D-04, OpenCL-free). Prints the raw
+# value ("inf" for byte-identical, or a float) to stdout.
+# ---------------------------------------------------------------------------
+psnr_of() {
+  local test_png="$1" ref_png="$2" statsfile="$3"
+  LC_ALL=C ffmpeg -y -i "$test_png" -i "$ref_png" -lavfi "psnr=stats_file=$statsfile" \
+    -f null - -hide_banner -loglevel error
+  awk -F'psnr_avg:' '{split($2,a," "); print a[1]}' "$statsfile"
+}
+
+# ---------------------------------------------------------------------------
+# classify_corrupt -- < 30 dB = corrupt (1), else clean (0). Threshold-only
+# classifier -- never a hardcoded equality against any specific dB value
+# (Pitfall 2, Anti-Pattern).
+# ---------------------------------------------------------------------------
+classify_corrupt() {
+  local p="$1"
+  if [[ "$p" == "inf" || -z "$p" ]]; then
+    echo 0
+  else
+    awk -v p="$p" 'BEGIN { print (p+0 < 30) ? 1 : 0 }'
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# run-iter <N> -- one full end-to-end iteration (REPRO-02, REPRO-03, REPRO-04).
+#   1. 3-way concurrent qsvencc measurement (923/928/1129), per-encode timeout,
+#      per-PID exit capture. Non-zero/timeout -> EXEC_FAILURE/TIMEOUT, skip
+#      PSNR, emit NA rows, do not run the control, return non-zero.
+#   2. Multi-scene PSNR classification (923/299 primary + 928/96 + 1129/299).
+#   3. Paired ffmpeg av1_qsv immune control, SEQUENTIAL-AFTER the qsvencc
+#      measurement, as its OWN separate 3-way run (never merged into one
+#      6-way run): the documented trigger triad is same-tool 3-way
+#      concurrency, and the control tests ffmpeg's immunity to ITS OWN 3-way
+#      concurrency; merging the two would change qsvencc's contention
+#      profile away from the documented trigger and could itself corrupt
+#      the control under heavier combined load (D-06, review concern 1).
+#      A non-clean/timed-out control sets status=CONTROL_INVALID for every
+#      row of this iteration.
+#   4. cleanup_gpu_procs() to avoid tripping the next iteration's gate.
+# Emits one result.csv line per scene per iteration with the report.csv
+# schema: iteration,scene,offset,status,psnr_db,corrupt,control_clean.
+# ---------------------------------------------------------------------------
+cmd_run_iter() {
+  local n="$1"
+  local it_dir="$W/runs/it$n"
+  local ctrl_dir="$W/control_runs/it$n"
+  mkdir -p "$it_dir" "$ctrl_dir"
+  local result_file="$it_dir/result.csv"
+  : > "$result_file"
+
+  # --- Step 1: 3-way concurrent qsvencc measurement ---
+  run_encode "$it_dir/log923.txt" qsvencc --avhw --va -i "$SRC" $COMMON \
+    --seek "$SCENE_923_SEEK" --trim "$SCENE_923_TRIM" -o "$it_dir/c923.obu" &
+  local p1=$!
+  run_encode "$it_dir/log928.txt" qsvencc --avhw --va -i "$SRC" $COMMON \
+    --seek "$SCENE_928_SEEK" --trim "$SCENE_928_TRIM" -o "$it_dir/c928.obu" &
+  local p2=$!
+  run_encode "$it_dir/log1129.txt" qsvencc --avhw --va -i "$SRC" $COMMON \
+    --seek "$SCENE_1129_SEEK" --trim "$SCENE_1129_TRIM" -o "$it_dir/c1129.obu" &
+  local p3=$!
+  wait "$p1"; local r1=$?
+  wait "$p2"; local r2=$?
+  wait "$p3"; local r3=$?
+
+  local meas_status="OK"
+  if [[ $r1 -eq 124 || $r2 -eq 124 || $r3 -eq 124 ]]; then
+    meas_status="TIMEOUT"
+  elif [[ $r1 -ne 0 || $r2 -ne 0 || $r3 -ne 0 ]]; then
+    meas_status="EXEC_FAILURE"
+  fi
+  echo "iteration $n measurement exit codes: 923=$r1 928=$r2 1129=$r3 status=$meas_status"
+
+  if [[ "$meas_status" != "OK" ]]; then
+    local scene off
+    for scene in 923 928 1129; do
+      off="$(scene_offset "$scene")"
+      echo "$n,$scene,$off,$meas_status,NA,NA,NA" >> "$result_file"
+    done
+    cleanup_gpu_procs
+    cat "$result_file"
+    return 1
+  fi
+
+  # --- Step 2: multi-scene PSNR classification ---
+  declare -A psnr_db corrupt
+  local scene ref_fail=0
+  for scene in 923 928 1129; do
+    ensure_scene_reference "$scene" || { ref_fail=1; break; }
+  done
+  if [[ $ref_fail -ne 0 ]]; then
+    local off
+    for scene in 923 928 1129; do
+      off="$(scene_offset "$scene")"
+      echo "$n,$scene,$off,EXEC_FAILURE,NA,NA,NA" >> "$result_file"
+    done
+    cleanup_gpu_procs
+    cat "$result_file"
+    return 1
+  fi
+
+  local off obu ref_png test_png statsfile
+  for scene in 923 928 1129; do
+    off="$(scene_offset "$scene")"
+    case "$scene" in
+      923) obu="$it_dir/c923.obu"; test_png="$it_dir/frame299.png"; statsfile="$it_dir/psnr.log" ;;
+      928) obu="$it_dir/c928.obu"; test_png="$it_dir/frame96_928.png"; statsfile="$it_dir/psnr_928.log" ;;
+      1129) obu="$it_dir/c1129.obu"; test_png="$it_dir/frame299_1129.png"; statsfile="$it_dir/psnr_1129.log" ;;
+    esac
+    ref_png="$(scene_ref_png "$scene")"
+    ffmpeg -y -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$test_png" -hide_banner -loglevel error
+    psnr_db[$scene]="$(psnr_of "$test_png" "$ref_png" "$statsfile")"
+    corrupt[$scene]="$(classify_corrupt "${psnr_db[$scene]}")"
+    echo "scene $scene offset $off: psnr_db=${psnr_db[$scene]} corrupt=${corrupt[$scene]}"
+  done
+
+  # --- Step 3: paired ffmpeg av1_qsv immune control, sequential-after,
+  #     separate 3-way run (D-06, review concern 1 -- see comment block above) ---
+  ctrl_encode "$SCENE_923_SEEK" 339 "$ctrl_dir/c923.obu" &
+  local cp1=$!
+  ctrl_encode "$SCENE_928_SEEK" 110 "$ctrl_dir/c928.obu" &
+  local cp2=$!
+  ctrl_encode "$SCENE_1129_SEEK" 361 "$ctrl_dir/c1129.obu" &
+  local cp3=$!
+  wait "$cp1"; local cr1=$?
+  wait "$cp2"; local cr2=$?
+  wait "$cp3"; local cr3=$?
+
+  local control_clean status_final
+  if [[ $cr1 -eq 124 || $cr2 -eq 124 || $cr3 -eq 124 ]]; then
+    control_clean="TIMEOUT"
+  elif [[ $cr1 -ne 0 || $cr2 -ne 0 || $cr3 -ne 0 ]]; then
+    control_clean="0"
+  else
+    local ctrl_psnr
+    ffmpeg -y -i "$ctrl_dir/c923.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
+      "$ctrl_dir/frame299.png" -hide_banner -loglevel error
+    ctrl_psnr="$(psnr_of "$ctrl_dir/frame299.png" "$W/control_reference/ffref_299.png" "$ctrl_dir/psnr.log")"
+    if [[ "$ctrl_psnr" == "inf" ]]; then
+      control_clean="1"
+    else
+      control_clean="$(awk -v p="$ctrl_psnr" 'BEGIN { print (p+0 >= 30) ? 1 : 0 }')"
+    fi
+  fi
+
+  if [[ "$control_clean" == "1" ]]; then
+    status_final="OK"
+  else
+    status_final="CONTROL_INVALID"
+  fi
+  echo "iteration $n control exit codes: 923=$cr1 928=$cr2 1129=$cr3 control_clean=$control_clean status=$status_final"
+
+  for scene in 923 928 1129; do
+    off="$(scene_offset "$scene")"
+    if [[ "$status_final" == "OK" ]]; then
+      echo "$n,$scene,$off,OK,${psnr_db[$scene]},${corrupt[$scene]},$control_clean" >> "$result_file"
+    else
+      echo "$n,$scene,$off,CONTROL_INVALID,NA,NA,$control_clean" >> "$result_file"
+    fi
+  done
+
+  cleanup_gpu_procs
+  cat "$result_file"
+
+  [[ "$status_final" == "OK" ]]
+}
+
+# ---------------------------------------------------------------------------
 # dispatcher
 # ---------------------------------------------------------------------------
 main() {
