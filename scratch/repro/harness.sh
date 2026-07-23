@@ -421,6 +421,203 @@ cmd_run_iter() {
 }
 
 # ---------------------------------------------------------------------------
+# print_batch_summary -- read report.csv and print the corruption-rate
+# summary (REPRO-05): raw X/N_actual + 95% Wilson CI for the primary
+# hotspot, confirmatory fractions for the other two hotspots, N_actual vs
+# N_requested with exclusion breakdown, the observed PSNR signature +
+# stability check, the paired-control result, the detection-N vs
+# validation-N statement (D-07), and the mechanism-vs-symptom NOTE. Also
+# saved to summary.txt. No `matches_known_signature` field is ever emitted.
+# ---------------------------------------------------------------------------
+print_batch_summary() {
+  local report="$1" n_requested="$2" n_actual="$3"
+  REPORT_CSV="$report" N_REQUESTED="$n_requested" N_ACTUAL="$n_actual" \
+    FINGERPRINT_FILE="$W/fingerprint.txt" python3 <<'PYEOF' | tee "$W/summary.txt"
+import csv, os, math, statistics
+
+report_csv = os.environ["REPORT_CSV"]
+n_requested = int(os.environ["N_REQUESTED"])
+n_actual = int(os.environ["N_ACTUAL"])
+fingerprint_file = os.environ["FINGERPRINT_FILE"]
+
+rows = []
+with open(report_csv, newline="") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        rows.append(row)
+
+def wilson_ci(x, n, z=1.96):
+    if n == 0:
+        return (None, None)
+    phat = x / n
+    denom = 1 + z * z / n
+    center = (phat + z * z / (2 * n)) / denom
+    half = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
+
+def scene_stats(scene):
+    scene_rows = [r for r in rows if r["scene"] == str(scene)]
+    ok_rows = [r for r in scene_rows if r["status"] == "OK"]
+    corrupt_rows = [r for r in ok_rows if r["corrupt"] == "1"]
+    n_ok = len(ok_rows)
+    x = len(corrupt_rows)
+    lo, hi = wilson_ci(x, n_ok) if n_ok else (None, None)
+    psnr_values = []
+    for r in corrupt_rows:
+        try:
+            psnr_values.append(float(r["psnr_db"]))
+        except ValueError:
+            pass
+    return dict(n_ok=n_ok, x=x, lo=lo, hi=hi, psnr_values=psnr_values)
+
+s923 = scene_stats(923)
+s928 = scene_stats(928)
+s1129 = scene_stats(1129)
+
+status_counts = {}
+for r in rows:
+    if r["scene"] == "923":
+        status_counts[r["status"]] = status_counts.get(r["status"], 0) + 1
+
+control_invalid = status_counts.get("CONTROL_INVALID", 0)
+exec_failure = status_counts.get("EXEC_FAILURE", 0)
+timeout_n = status_counts.get("TIMEOUT", 0)
+ok_n = status_counts.get("OK", 0)
+
+fingerprint_summary = "UNAVAILABLE"
+try:
+    with open(fingerprint_file) as f:
+        for line in f:
+            if line.startswith("kernel_matches_affected_host"):
+                fingerprint_summary = line.strip()
+                break
+except OSError:
+    pass
+
+print("=" * 78)
+print("QSV concurrent-encode corruption -- baseline report")
+print("=" * 78)
+print(f"fingerprint: {fingerprint_file} ({fingerprint_summary})")
+print()
+print(f"N_requested: {n_requested}")
+print(f"N_actual:    {n_actual}")
+print(f"  OK: {ok_n}  EXEC_FAILURE: {exec_failure}  TIMEOUT: {timeout_n}  CONTROL_INVALID: {control_invalid}")
+print(f"  (excluded from corruption-fraction denominator: {exec_failure + timeout_n + control_invalid})")
+print()
+print("-- Primary hotspot: scene 923 / offset 299 --")
+if s923["n_ok"] > 0:
+    frac = s923["x"] / s923["n_ok"]
+    print(f"  corruption fraction: {s923['x']}/{s923['n_ok']} ({frac:.1%})")
+    print(f"  95% Wilson CI: [{s923['lo']:.3f}, {s923['hi']:.3f}]")
+else:
+    print("  no OK (control-clean) iterations to report")
+if s923["psnr_values"]:
+    mean = statistics.mean(s923["psnr_values"])
+    stdev = statistics.pstdev(s923["psnr_values"]) if len(s923["psnr_values"]) > 1 else 0.0
+    stable = stdev < 2.0
+    print(f"  observed corrupt-frame PSNR values (dB): {[round(v, 2) for v in s923['psnr_values']]}")
+    print(f"  mean={mean:.2f} dB, stddev={stdev:.2f} dB, signature_stable_across_iterations={stable}")
+    print("  (informational only: the previously-documented handoff signature was ~15.74 dB;")
+    print("   this environment's own deterministic value may differ -- see 01-RESEARCH.md)")
+else:
+    print("  no corrupt frames observed at this hotspot this batch")
+print()
+print("-- Confirmatory hotspot: scene 928 / offset 96 --")
+if s928["n_ok"] > 0:
+    frac = s928["x"] / s928["n_ok"]
+    print(f"  corruption fraction: {s928['x']}/{s928['n_ok']} ({frac:.1%})")
+else:
+    print("  no OK iterations to report")
+print()
+print("-- Confirmatory hotspot: scene 1129 / offset 299 --")
+if s1129["n_ok"] > 0:
+    frac = s1129["x"] / s1129["n_ok"]
+    print(f"  corruption fraction: {s1129['x']}/{s1129['n_ok']} ({frac:.1%})")
+else:
+    print("  no OK iterations to report")
+print()
+print("-- Paired immune control --")
+print(f"  ffmpeg av1_qsv control non-clean/invalidated iterations: {control_invalid}/{n_actual}")
+print(f"  (expected 0/{n_actual} -- a non-zero count here means the control itself was")
+print("   compromised for that iteration and it was excluded from the qsvencc finding)")
+print()
+print("-- Detection-N vs validation-N (D-07) --")
+print(f"  This batch is the DETECTION sample (N_requested={n_requested}), sized to observe")
+print("  whether the documented ~33-65% baseline recurs in this environment.")
+print("  A larger ~60 zero-failure VALIDATION-N (rule-of-three) is defined but RESERVED")
+print("  for later fix/clean claims -- it is NOT run in this phase.")
+print()
+print("-- Mechanism-vs-symptom NOTE --")
+print("  This baseline confirms reproduction by the PSNR-drop SYMPTOM (a hotspot frame")
+print("  scoring well below the 30 dB threshold, deterministically, under 3-way")
+print("  concurrency). Confirming that the corrupt frame's CONTENT actually originates")
+print("  from a concurrently-running session's scene (the documented cross-session")
+print("  aliasing mechanism) is DEFERRED to Phase 2 -- not established by this batch.")
+print("=" * 78)
+PYEOF
+}
+
+# ---------------------------------------------------------------------------
+# run-batch [N=20] -- loop run-iter N times (default 20 per D-07), write
+# report.csv, print the recorded baseline (REPRO-05). Deliberately catches
+# per-iteration failures and continues (run-batch's own set -e policy).
+# ---------------------------------------------------------------------------
+cmd_run_batch() {
+  local n_requested="${1:-20}"
+  mkdir -p "$W/runs" "$W/control_runs"
+
+  # Disk preflight (review hygiene item 11) -- a full disk mid-batch would
+  # otherwise silently corrupt outputs.
+  local avail_kb threshold_kb=$((5 * 1024 * 1024))
+  avail_kb="$(df -Pk "$W" | awk 'NR==2{print $4}')"
+  if [[ -z "$avail_kb" || "$avail_kb" -lt "$threshold_kb" ]]; then
+    echo "ABORT: insufficient free disk space under $W (available: ${avail_kb:-unknown} KB, need >= ${threshold_kb} KB) -- aborting before the batch to avoid a full-disk mid-batch corruption" >&2
+    exit 1
+  fi
+  echo "disk preflight OK: ${avail_kb} KB available under $W"
+
+  local report="$W/report.csv"
+  echo "iteration,scene,offset,status,psnr_db,corrupt,control_clean" > "$report"
+
+  local i iter_label n_actual=0
+  for i in $(seq 1 "$n_requested"); do
+    iter_label="$(printf "%02d" "$i")"
+
+    # Inter-iteration GPU isolation re-check (review concern 4 -- VA
+    # surface / renderD128 release can be async to process exit).
+    local idle_ok=0 retry
+    for retry in 1 2 3; do
+      sleep 1
+      if [[ -z "$(gpu_clients)" ]]; then
+        idle_ok=1
+        break
+      fi
+      cleanup_gpu_procs
+    done
+
+    if [[ $idle_ok -ne 1 ]]; then
+      echo "WARNING: iteration $iter_label GPU still not idle after cleanup + retries -- marking contaminated, not starting a new encode on a dirty GPU: $(gpu_clients)" >&2
+      local scene off
+      for scene in 923 928 1129; do
+        off="$(scene_offset "$scene")"
+        echo "$iter_label,$scene,$off,EXEC_FAILURE,NA,NA,NA" >> "$report"
+      done
+      n_actual=$((n_actual + 1))
+      continue
+    fi
+
+    cmd_run_iter "$iter_label" || true
+    if [[ -f "$W/runs/it$iter_label/result.csv" ]]; then
+      cat "$W/runs/it$iter_label/result.csv" >> "$report"
+    fi
+    n_actual=$((n_actual + 1))
+  done
+
+  echo "batch complete: n_requested=$n_requested n_actual=$n_actual"
+  print_batch_summary "$report" "$n_requested" "$n_actual"
+}
+
+# ---------------------------------------------------------------------------
 # dispatcher
 # ---------------------------------------------------------------------------
 main() {
