@@ -60,7 +60,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Concurrent av1_vaapi runner: cmd_run_iter_vaapi (3-way measure + PSNR classify + paired av1_qsv control, D-06/D-11) + cmd_run_batch_vaapi + smoke run (extra_hw_frames under concurrency, A2)
+- [x] 02-02-PLAN.md — Concurrent av1_vaapi runner: cmd_run_iter_vaapi (3-way measure + PSNR classify + paired av1_qsv control, D-06/D-11) + cmd_run_batch_vaapi + smoke run (extra_hw_frames under concurrency, A2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -127,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
-| 2. In-Container Triangulation — av1_vaapi | 1/5 | In Progress|  |
+| 2. In-Container Triangulation — av1_vaapi | 2/5 | In Progress|  |
 | 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
 | 4. Workaround Recommendation & Defense-in-Depth Gate | 0/TBD | Not started | - |
 | 5. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |

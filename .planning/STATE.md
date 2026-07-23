@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-07-23T09:49:10.329Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-07-23T10:02:47.639Z"
 last_activity: 2026-07-23 -- Phase 02 execution started
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 3
+  completed_plans: 4
   percent: 20
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 02 (in-container-triangulation-av1-vaapi) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Executing Phase 02
 Last activity: 2026-07-23 -- Phase 02 execution started
 
-Progress: [████░░░░░░] 43%
+Progress: [██████░░░░] 57%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [████░░░░░░] 43%
 *Updated after each plan completion*
 | Phase 01 P02 | 20min | 3 tasks | 3 files |
 | Phase 02 P01 | 20min | 2 tasks | 1 files |
+| Phase 02 P02 | 15min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Ran plan 01-02 entirely on the main working tree (no worktree isolation) per its hard execution_constraint, regenerating the git-ignored scratch/repro/ baseline the first execution's git worktree remove had destroyed — Prevents repeating the original evidence-loss failure mode; observed re-run baseline (923/299 9/20 45.0%, 1129/299 8/20 40.0%, 928/96 0/20, control 0/20) is now persisted both on disk and in a git-tracked 01-EVIDENCE.md snapshot
 - [Phase 02]: D-02 probe result on Arc A380: reorder UNSUPPORTED, P010 ACTIVE, HW-decode ACTIVE -> PARTIAL-TRIAD
 - [Phase 02]: Fixed broken ffprobe 'dts' field name in D-02 reorder probe (real field is pkt_dts); documented recipe would have produced a false ACTIVE reorder verdict on every frame
+- [Phase 02]: Extended run-batch-vaapi reference preflight to require both av1_vaapi self-references and av1_qsv control references before starting
+- [Phase 02]: Live 2-iteration smoke run confirmed Assumption A2 -- extra_hw_frames=64 holds under real 3-way concurrent contention, zero EXEC_FAILURE
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-23T09:49:10.302Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-01-SUMMARY.md
+Last session: 2026-07-23T10:02:47.616Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-02-SUMMARY.md
