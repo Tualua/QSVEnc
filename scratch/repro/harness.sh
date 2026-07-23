@@ -270,8 +270,14 @@ psnr_of() {
 # ---------------------------------------------------------------------------
 classify_corrupt() {
   local p="$1"
-  if [[ "$p" == "inf" || -z "$p" ]]; then
+  if [[ "$p" == "inf" ]]; then
+    # byte-identical to the reference -> genuinely clean
     echo 0
+  elif [[ -z "$p" ]]; then
+    # a MISSING/empty PSNR is a measurement failure, NEVER "clean" (CR-01):
+    # emit NA so the caller records MEASURE_FAILURE and excludes it from the
+    # corruption-fraction denominator instead of scoring it corrupt=0.
+    echo NA
   else
     awk -v p="$p" 'BEGIN { print (p+0 < 30) ? 1 : 0 }'
   fi
@@ -338,7 +344,7 @@ cmd_run_iter() {
   fi
 
   # --- Step 2: multi-scene PSNR classification ---
-  declare -A psnr_db corrupt
+  declare -A psnr_db corrupt meas_fail
   local scene ref_fail=0
   for scene in 923 928 1129; do
     ensure_scene_reference "$scene" || { ref_fail=1; break; }
@@ -363,9 +369,25 @@ cmd_run_iter() {
       1129) obu="$it_dir/c1129.obu"; test_png="$it_dir/frame299_1129.png"; statsfile="$it_dir/psnr_1129.log" ;;
     esac
     ref_png="$(scene_ref_png "$scene")"
-    ffmpeg -y -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$test_png" -hide_banner -loglevel error
-    psnr_db[$scene]="$(psnr_of "$test_png" "$ref_png" "$statsfile")"
-    corrupt[$scene]="$(classify_corrupt "${psnr_db[$scene]}")"
+    # CR-01: a *failed* frame extraction is the strongest corruption signal
+    # (a truncated/broken .obu). It must NEVER fall through to a clean score.
+    # Guard the extraction and treat a missing/empty test frame or an empty
+    # PSNR as an explicit MEASURE_FAILURE, excluded from the denominator.
+    if ! ffmpeg -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 \
+         "$test_png" -hide_banner -loglevel error || [[ ! -s "$test_png" ]]; then
+      psnr_db[$scene]="NA"; corrupt[$scene]="NA"; meas_fail[$scene]=1
+      echo "scene $scene offset $off: MEASURE_FAILURE (frame extraction failed / test frame missing)"
+      continue
+    fi
+    local raw
+    raw="$(psnr_of "$test_png" "$ref_png" "$statsfile")"
+    if [[ -z "$raw" ]]; then
+      psnr_db[$scene]="NA"; corrupt[$scene]="NA"; meas_fail[$scene]=1
+      echo "scene $scene offset $off: MEASURE_FAILURE (empty PSNR measurement)"
+      continue
+    fi
+    psnr_db[$scene]="$raw"; corrupt[$scene]="$(classify_corrupt "$raw")"
+    meas_fail[$scene]=0
     echo "scene $scene offset $off: psnr_db=${psnr_db[$scene]} corrupt=${corrupt[$scene]}"
   done
 
@@ -407,7 +429,10 @@ cmd_run_iter() {
 
   for scene in 923 928 1129; do
     off="$(scene_offset "$scene")"
-    if [[ "$status_final" == "OK" ]]; then
+    if [[ "${meas_fail[$scene]}" == "1" ]]; then
+      # CR-01: a failed measurement is its own outcome -- never OK/clean.
+      echo "$n,$scene,$off,MEASURE_FAILURE,NA,NA,$control_clean" >> "$result_file"
+    elif [[ "$status_final" == "OK" ]]; then
       echo "$n,$scene,$off,OK,${psnr_db[$scene]},${corrupt[$scene]},$control_clean" >> "$result_file"
     else
       echo "$n,$scene,$off,CONTROL_INVALID,NA,NA,$control_clean" >> "$result_file"
@@ -482,6 +507,7 @@ for r in rows:
 control_invalid = status_counts.get("CONTROL_INVALID", 0)
 exec_failure = status_counts.get("EXEC_FAILURE", 0)
 timeout_n = status_counts.get("TIMEOUT", 0)
+measure_failure = status_counts.get("MEASURE_FAILURE", 0)
 ok_n = status_counts.get("OK", 0)
 
 fingerprint_summary = "UNAVAILABLE"
@@ -501,8 +527,8 @@ print(f"fingerprint: {fingerprint_file} ({fingerprint_summary})")
 print()
 print(f"N_requested: {n_requested}")
 print(f"N_actual:    {n_actual}")
-print(f"  OK: {ok_n}  EXEC_FAILURE: {exec_failure}  TIMEOUT: {timeout_n}  CONTROL_INVALID: {control_invalid}")
-print(f"  (excluded from corruption-fraction denominator: {exec_failure + timeout_n + control_invalid})")
+print(f"  OK: {ok_n}  EXEC_FAILURE: {exec_failure}  TIMEOUT: {timeout_n}  MEASURE_FAILURE: {measure_failure}  CONTROL_INVALID: {control_invalid}")
+print(f"  (excluded from corruption-fraction denominator: {exec_failure + timeout_n + measure_failure + control_invalid})")
 print()
 print("-- Primary hotspot: scene 923 / offset 299 --")
 if s923["n_ok"] > 0:
