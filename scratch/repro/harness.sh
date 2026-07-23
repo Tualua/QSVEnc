@@ -676,6 +676,22 @@ cmd_run_batch() {
   fi
   echo "disk preflight OK: ${avail_kb} KB available under $W"
 
+  # Reference-artifact preflight (WR-05): without the qsvencc and control
+  # references, every iteration's PSNR compare fails (empty PSNR -> control
+  # not clean), so an entire batch run before `reference` would silently
+  # yield all-CONTROL_INVALID with no useful data. Fail loudly and early.
+  local rscene missing=0 rpng cpng
+  for rscene in 923 928 1129; do
+    rpng="$(scene_ref_png "$rscene")"; cpng="$(ctrl_ref_png "$rscene")"
+    [[ -f "$rpng" ]] || { echo "ABORT: missing qsvencc reference frame for scene $rscene: $rpng" >&2; missing=1; }
+    [[ -f "$cpng" ]] || { echo "ABORT: missing control reference frame for scene $rscene: $cpng" >&2; missing=1; }
+  done
+  if [[ $missing -ne 0 ]]; then
+    echo "ABORT: run '$0 reference' first (missing reference artifacts)" >&2
+    exit 1
+  fi
+  echo "reference-artifact preflight OK: qsvencc + control references present for 923/928/1129"
+
   local report="$W/report.csv"
   echo "iteration,scene,offset,status,psnr_db,corrupt,control_clean" > "$report"
 
