@@ -519,6 +519,116 @@ classify_corrupt() {
 }
 
 # ---------------------------------------------------------------------------
+# ensure_vaapi_reference -- generate a scene's av1_vaapi self-reference
+# (D-04), cache-check-then-generate like ensure_scene_reference/
+# ensure_control_reference. For scene 923 (the required primary hotspot),
+# performs a D-05 determinism re-confirmation FIRST: two isolated
+# vaapi_encode() runs, md5-compared with the WR-10 fail-closed guard (both
+# hashes non-empty AND equal). Because av1_vaapi bit-determinism is
+# unverified by research, a md5 mismatch falls back to a >=50 dB PSNR
+# comparison of the two runs' extracted hotspot frames before accepting
+# determinism; failing both is a hard abort (D-05 precondition). Scenes
+# 928/1129 get a single isolated encode each (no determinism re-check
+# required by D-04 -- only 923 is the required primary hotspot), since the
+# next plan's classification compares all three scenes against their own
+# vaapi self-reference.
+#
+# Worker-function contract: returns 1 on error, never exit/die -- only
+# cmd_reference_vaapi (top-level) exits.
+# ---------------------------------------------------------------------------
+ensure_vaapi_reference() {
+  local scene="$1" obu png seek off frames
+  obu="$(vaapi_ref_obu "$scene")" || return 1
+  png="$(vaapi_ref_png "$scene")" || return 1
+  if [[ -f "$obu" && -f "$png" ]]; then
+    echo "av1_vaapi reference for scene $scene already exists, skipping re-encode: $obu"
+    return 0
+  fi
+  seek="$(scene_seek "$scene")"; off="$(scene_offset "$scene")"
+  frames="$(ctrl_frames "$scene")" || return 1
+
+  # WR-06: renderD128/VA-surface release is async to process exit -- wait for
+  # the GPU to actually go idle (with cleanup + retries) before requiring
+  # exclusivity, mirroring ensure_scene_reference/cmd_run_batch's gate.
+  local _r
+  for _r in 1 2 3; do
+    [[ -z "$(gpu_clients)" ]] && break
+    cleanup_gpu_procs
+    sleep 1
+  done
+  require_gpu_exclusive || { echo "ABORT: av1_vaapi reference generation for scene $scene requires exclusive GPU access" >&2; return 1; }
+
+  if [[ "$scene" == "923" ]]; then
+    echo "== reference-vaapi: av1_vaapi isolated determinism check (scene 923, D-05) =="
+    vaapi_encode "$seek" "$frames" "$obu" \
+      || { echo "ABORT: av1_vaapi reference encode (run 1) for scene 923 failed" >&2; return 1; }
+    local obu_repeat="${obu%.obu}_repeat.obu"
+    vaapi_encode "$seek" "$frames" "$obu_repeat" \
+      || { echo "ABORT: av1_vaapi reference encode (run 2) for scene 923 failed" >&2; return 1; }
+
+    local md5_a md5_b
+    md5_a="$(md5sum "$obu" | awk '{print $1}')"
+    md5_b="$(md5sum "$obu_repeat" | awk '{print $1}')"
+    # WR-10: require both hashes non-empty AND equal (same fail-closed
+    # direction as CR-01/cmd_reference's own md5 gate).
+    if [[ -n "$md5_a" && -n "$md5_b" && "$md5_a" == "$md5_b" ]]; then
+      echo "av1_vaapi reference determinism OK (bit-identical): md5 $md5_a matches across two isolated encodes"
+    else
+      echo "av1_vaapi reference not bit-identical (md5 '$md5_a' vs '$md5_b') -- falling back to D-05 PSNR determinism check"
+      local png_a png_b psnr_val
+      png_a="$W/reference/frame299_vaapi_ref_run1.png"
+      png_b="$W/reference/frame299_vaapi_ref_run2.png"
+      ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png_a" -hide_banner -loglevel error \
+        || { echo "ABORT: av1_vaapi determinism-fallback frame extraction (run 1) failed" >&2; return 1; }
+      ff_bounded -y -nostdin -i "$obu_repeat" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png_b" -hide_banner -loglevel error \
+        || { echo "ABORT: av1_vaapi determinism-fallback frame extraction (run 2) failed" >&2; return 1; }
+      psnr_val="$(psnr_of "$png_a" "$png_b" "$W/reference/vaapi_determinism_psnr.log")"
+      # D-05 fallback threshold: >=50 dB. 50 dB corresponds to <1-bit average
+      # per-pixel difference -- ~4x the <30 dB corrupt threshold, and well
+      # above plausible ICQ-mode rate-control encode variance -- high enough
+      # to trust the self-reference while tolerating non-bit-exact rate
+      # control, and far above the ~12-22 dB a concurrency-induced content
+      # swap scores against its own reference (so a swapped frame can never
+      # masquerade as determinism-confirmed).
+      if [[ "$psnr_val" == "inf" ]]; then
+        echo "av1_vaapi reference determinism OK (byte-identical extracted frame, PSNR=inf)"
+      elif [[ -n "$psnr_val" ]] && awk -v p="$psnr_val" 'BEGIN{exit !(p+0>=50)}'; then
+        echo "av1_vaapi reference determinism OK (PSNR fallback): $psnr_val dB >= 50 dB"
+      else
+        echo "ABORT: av1_vaapi self-reference determinism check failed (D-05 precondition) -- md5 '$md5_a' vs '$md5_b', PSNR fallback '$psnr_val' dB < 50 dB" >&2
+        return 1
+      fi
+    fi
+    # The first run's OBU (already at $obu) is kept as the trusted reference.
+  else
+    echo "== reference-vaapi: av1_vaapi isolated reference (scene $scene) =="
+    vaapi_encode "$seek" "$frames" "$obu" \
+      || { echo "ABORT: av1_vaapi reference encode for scene $scene failed" >&2; return 1; }
+  fi
+
+  ff_bounded -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
+    || { echo "ABORT: av1_vaapi reference frame extraction for scene $scene failed" >&2; return 1; }
+  echo "av1_vaapi reference generated for scene $scene: $obu -> $png"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# cmd_reference_vaapi -- top-level entry point (D-04/D-05): generate the
+# determinism-confirmed av1_vaapi self-reference for all three scenes
+# (923/928/1129). Top-level cmd_* entry point: the only vaapi reference
+# function allowed to exit; ensure_vaapi_reference itself only returns.
+# ---------------------------------------------------------------------------
+cmd_reference_vaapi() {
+  mkdir -p "$W/reference"
+  local scene
+  for scene in 923 928 1129; do
+    ensure_vaapi_reference "$scene" \
+      || { echo "ABORT: av1_vaapi reference generation for scene $scene failed" >&2; exit 1; }
+  done
+  echo "reference-vaapi complete: av1_vaapi self-references generated for 923/928/1129"
+}
+
+# ---------------------------------------------------------------------------
 # run-iter <N> -- one full end-to-end iteration (REPRO-02, REPRO-03, REPRO-04).
 #   1. 3-way concurrent qsvencc measurement (923/928/1129), per-encode timeout,
 #      per-PID exit capture. Non-zero/timeout -> EXEC_FAILURE/TIMEOUT, skip
@@ -945,6 +1055,9 @@ main() {
     reference)
       cmd_reference
       ;;
+    reference-vaapi)
+      cmd_reference_vaapi
+      ;;
     run-iter)
       shift
       cmd_run_iter "${1:?run-iter requires an iteration number}"
@@ -954,7 +1067,7 @@ main() {
       cmd_run_batch "${1:-20}"
       ;;
     *)
-      echo "Usage: $0 {probe|probe-vaapi|reference|run-iter <N>|run-batch [N=20]}" >&2
+      echo "Usage: $0 {probe|probe-vaapi|reference|reference-vaapi|run-iter <N>|run-batch [N=20]}" >&2
       exit 2
       ;;
   esac
