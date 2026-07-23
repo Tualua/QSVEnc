@@ -155,6 +155,17 @@ cmd_reference() {
     || { echo "ABORT: reference frame extraction failed" >&2; exit 1; }
   echo "reference frame extracted: $W/reference/frame299_ref.png"
 
+  # WR-06: generate the 928/1129 qsvencc references up front too (mirroring
+  # 923) while the GPU is known-exclusive here. Generating them lazily inside
+  # run-iter races the async renderD128/VA-surface release right after the
+  # measurement encodes exit, which could permanently starve them and convert
+  # the entire batch into EXEC_FAILURE.
+  local qscene
+  for qscene in 928 1129; do
+    ensure_scene_reference "$qscene" \
+      || { echo "ABORT: reference generation for scene $qscene failed" >&2; exit 1; }
+  done
+
   # Once-only ffmpeg av1_qsv control references for ALL THREE control scenes
   # (D-06, review concern 5; WR-04 -- control immunity must be PSNR-validated
   # per-scene, not 923-only). Each is guarded with an existence check inside
@@ -292,6 +303,16 @@ ensure_scene_reference() {
   fi
   seek="$(scene_seek "$scene")"; trim="$(scene_trim "$scene")"; off="$(scene_offset "$scene")"
   echo "generating missing reference for scene $scene (offset $off)..."
+  # WR-06: renderD128/VA-surface release is async to process exit, so a bare
+  # require_gpu_exclusive called right after the measurement encodes can
+  # spuriously fail. Wait for the GPU to actually go idle (with cleanup +
+  # retries) before requiring exclusivity, mirroring cmd_run_batch's gate.
+  local _r
+  for _r in 1 2 3; do
+    [[ -z "$(gpu_clients)" ]] && break
+    cleanup_gpu_procs
+    sleep 1
+  done
   require_gpu_exclusive || { echo "ABORT: reference generation for scene $scene requires exclusive GPU access" >&2; return 1; }
   qsvencc --avhw --va -i "$SRC" $COMMON --seek "$seek" --trim "$trim" -o "$obu" \
     || { echo "ABORT: reference encode for scene $scene failed" >&2; return 1; }
