@@ -1228,6 +1228,104 @@ cmd_run_batch() {
 }
 
 # ---------------------------------------------------------------------------
+# run-batch-vaapi [N=20] -- loop cmd_run_iter_vaapi N times, write
+# report_vaapi.csv (distinct from the qsvencc report.csv). Structural copy of
+# cmd_run_batch: WR-08 numeric-N guard, disk preflight, an EXTENDED
+# reference-artifact preflight (requires both the av1_vaapi self-references
+# AND the av1_qsv control references), inter-iteration GPU-idle recheck with
+# cleanup_gpu_procs retries, and the "one bad iteration never aborts the
+# batch" pattern.
+#
+# PLACEHOLDER: replace in 02-03 Task 1 -- this plan intentionally does NOT
+# call print_batch_summary_vaapi (it does not exist yet) and does NOT call
+# the qsvencc print_batch_summary (its text would misdescribe an av1_vaapi
+# batch). The placeholder below only dumps the raw report so the smoke run
+# has something to inspect. MANDATORY HANDOFF: a batch that ships with this
+# placeholder active produces measurement rows but NO interpretive summary
+# (no triad caveat, no gated escalation, no SC#2 interpretation) -- 02-03
+# Task 1 MUST replace this with the real print_batch_summary_vaapi call.
+# ---------------------------------------------------------------------------
+cmd_run_batch_vaapi() {
+  local n_requested="${1:-20}"
+  # WR-08: a non-numeric N silently no-ops `seq` (zero iterations) and then
+  # would crash a Python summary at int(N_REQUESTED). Validate up front.
+  if [[ ! "$n_requested" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ABORT: N must be a positive integer (got: '$n_requested')" >&2
+    exit 2
+  fi
+  mkdir -p "$W/vaapi_runs" "$W/control_runs"
+
+  # Disk preflight (carried from cmd_run_batch).
+  local avail_kb threshold_kb=$((5 * 1024 * 1024))
+  avail_kb="$(df -Pk "$W" | awk 'NR==2{print $4}')"
+  if [[ -z "$avail_kb" || "$avail_kb" -lt "$threshold_kb" ]]; then
+    echo "ABORT: insufficient free disk space under $W (available: ${avail_kb:-unknown} KB, need >= ${threshold_kb} KB) -- aborting before the batch to avoid a full-disk mid-batch corruption" >&2
+    exit 1
+  fi
+  echo "disk preflight OK: ${avail_kb} KB available under $W"
+
+  # Reference-artifact preflight (WR-05), EXTENDED for av1_vaapi: without
+  # both the av1_vaapi self-references and the av1_qsv control references,
+  # every iteration's classification/control validation fails silently.
+  local rscene missing=0 vpng cpng
+  for rscene in 923 928 1129; do
+    vpng="$(vaapi_ref_png "$rscene")"; cpng="$(ctrl_ref_png "$rscene")"
+    [[ -f "$vpng" ]] || { echo "ABORT: missing av1_vaapi self-reference frame for scene $rscene: $vpng" >&2; missing=1; }
+    [[ -f "$cpng" ]] || { echo "ABORT: missing control reference frame for scene $rscene: $cpng" >&2; missing=1; }
+  done
+  if [[ $missing -ne 0 ]]; then
+    echo "ABORT: run '$0 reference-vaapi' and '$0 reference' first (missing reference artifacts)" >&2
+    exit 1
+  fi
+  echo "reference-artifact preflight OK: av1_vaapi self-references + control references present for 923/928/1129"
+
+  local report="$W/report_vaapi.csv"
+  echo "iteration,scene,offset,status,psnr_db,corrupt,control_clean" > "$report"
+
+  local i iter_label n_actual=0 n_contaminated=0
+  for i in $(seq 1 "$n_requested"); do
+    iter_label="$(printf "%02d" "$i")"
+
+    # Inter-iteration GPU isolation re-check (carried from cmd_run_batch).
+    local idle_ok=0 retry
+    for retry in 1 2 3; do
+      sleep 1
+      if [[ -z "$(gpu_clients)" ]]; then
+        idle_ok=1
+        break
+      fi
+      cleanup_gpu_procs
+    done
+
+    if [[ $idle_ok -ne 1 ]]; then
+      echo "WARNING: vaapi iteration $iter_label GPU still not idle after cleanup + retries -- marking contaminated, not starting a new encode on a dirty GPU: $(gpu_clients)" >&2
+      local scene off
+      for scene in 923 928 1129; do
+        off="$(scene_offset "$scene")"
+        echo "$iter_label,$scene,$off,EXEC_FAILURE,NA,NA,NA" >> "$report"
+      done
+      n_contaminated=$((n_contaminated + 1))
+      continue
+    fi
+
+    cmd_run_iter_vaapi "$iter_label" || true
+    if [[ -f "$W/vaapi_runs/it$iter_label/result.csv" ]]; then
+      cat "$W/vaapi_runs/it$iter_label/result.csv" >> "$report"
+      n_actual=$((n_actual + 1))
+    fi
+  done
+
+  echo "vaapi batch complete: n_requested=$n_requested n_actual=$n_actual contaminated_skipped=$n_contaminated"
+  # PLACEHOLDER: replace in 02-03 Task 1 with print_batch_summary_vaapi.
+  # Deliberately NOT calling print_batch_summary (qsvencc-specific text would
+  # misdescribe this av1_vaapi batch) and NOT yet calling a
+  # print_batch_summary_vaapi (does not exist until 02-03). Dump the raw
+  # report so this plan's smoke run has something to inspect.
+  echo "-- report_vaapi.csv (raw; interpretive summary deferred to 02-03 Task 1) --"
+  cat "$report"
+}
+
+# ---------------------------------------------------------------------------
 # dispatcher
 # ---------------------------------------------------------------------------
 main() {
@@ -1253,8 +1351,16 @@ main() {
       shift
       cmd_run_batch "${1:-20}"
       ;;
+    run-iter-vaapi)
+      shift
+      cmd_run_iter_vaapi "${1:?run-iter-vaapi requires an iteration number}"
+      ;;
+    run-batch-vaapi)
+      shift
+      cmd_run_batch_vaapi "${1:-20}"
+      ;;
     *)
-      echo "Usage: $0 {probe|probe-vaapi|reference|reference-vaapi|run-iter <N>|run-batch [N=20]}" >&2
+      echo "Usage: $0 {probe|probe-vaapi|reference|reference-vaapi|run-iter <N>|run-batch [N=20]|run-iter-vaapi <N>|run-batch-vaapi [N=20]}" >&2
       exit 2
       ;;
   esac
