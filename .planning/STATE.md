@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-07-23T10:22:43.429Z"
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-07-23T11:46:10.403Z"
 last_activity: 2026-07-23 -- Phase 02 execution started
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 20
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 02 (in-container-triangulation-av1-vaapi) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Executing Phase 02
 Last activity: 2026-07-23 -- Phase 02 execution started
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [███████░░░] 71%
 | Phase 02 P01 | 20min | 2 tasks | 1 files |
 | Phase 02 P02 | 15min | 2 tasks | 1 files |
 | Phase 02 P03 | 20min | 2 tasks | 1 files |
+| Phase 02 P04 | 92min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Extended run-batch-vaapi reference preflight to require both av1_vaapi self-references and av1_qsv control references before starting
 - [Phase 02]: Live 2-iteration smoke run confirmed Assumption A2 -- extra_hw_frames=64 holds under real 3-way concurrent contention, zero EXEC_FAILURE
 - [Phase 02]: Live detection-N=20 av1_vaapi batch (03): 0/20 corrupt all three scenes, control 0/20 clean, PARTIAL-TRIAD (reorder unsupported), gated verdict do-NOT-escalate, immunity NOT proven (D-08/D-03)
+- [Phase 02]: Full historical qsvencc content-origin cross-match (D-09/D-10) completed: 0/17 corrupt frames confirmed as cross-session content swaps (>=35 dB); best cross-scene PSNR 10.49-18.57 dB -- Phase 1's Mechanism-vs-symptom NOTE stays OPEN, not closed
+- [Phase 02]: av1_vaapi corrupt-path cross-match wired and verified N/A (0/20 corrupt this batch, PARTIAL-TRIAD, as expected)
 
 ### Pending Todos
 
@@ -94,6 +97,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-23T10:22:43.409Z
-Stopped at: Completed 02-03-PLAN.md
-Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-03-SUMMARY.md
+Last session: 2026-07-23T11:46:10.382Z
+Stopped at: Completed 02-04-PLAN.md
+Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-04-SUMMARY.md
