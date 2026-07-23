@@ -31,7 +31,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A bit-clean single-session reference frame (scene 923, offset 299) exists, and the harness classifies a test frame as corrupt via external-ffmpeg PSNR against that reference (`<30 dB` = corrupt; known signature ≈15.74 dB).
   4. Every qsvencc measurement in this phase has a paired ffmpeg `av1_qsv` immune-control run (HW h264_qsv decode + P010 + GopRefDist6 pyramid) reported alongside it, confirmed clean (0/N).
   5. Baseline corruption frequency and PSNR signature are reported over a detection-sized sample (~15-20 iterations), with detection-N explicitly distinguished from the larger validation-N required later for any "clean/fixed" claim.
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 01-01-PLAN.md — Reproduction harness: environment probe, bit-clean reference, 3-way concurrent runner, PSNR classifier, paired av1_qsv immune control, detection-N=20 baseline report
 
 ### Phase 2: In-Container Triangulation — av1_vaapi
 **Mode:** mvp
@@ -86,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Harness, Control & Environment Fingerprinting | 0/TBD | Not started | - |
+| 1. Harness, Control & Environment Fingerprinting | 0/1 | Not started | - |
 | 2. In-Container Triangulation — av1_vaapi | 0/TBD | Not started | - |
 | 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
 | 4. Workaround Recommendation & Defense-in-Depth Gate | 0/TBD | Not started | - |
