@@ -66,29 +66,29 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REPRO-01 | TBD | Pending |
-| REPRO-02 | TBD | Pending |
-| REPRO-03 | TBD | Pending |
-| REPRO-04 | TBD | Pending |
-| REPRO-05 | TBD | Pending |
-| DIAG-01 | TBD | Pending |
-| DIAG-02 | TBD | Pending |
-| DIAG-03 | TBD | Pending |
-| DIAG-04 | TBD | Pending |
-| DIAG-05 | TBD | Pending |
-| WORK-01 | TBD | Pending |
-| WORK-02 | TBD | Pending |
-| WORK-03 | TBD | Pending |
-| WORK-04 | TBD | Pending |
-| GUARD-01 | TBD | Pending |
-| GUARD-02 | TBD | Pending |
-| DONE-01 | TBD | Pending |
+| REPRO-01 | Phase 1 | Pending |
+| REPRO-02 | Phase 1 | Pending |
+| REPRO-03 | Phase 1 | Pending |
+| REPRO-04 | Phase 1 | Pending |
+| REPRO-05 | Phase 1 | Pending |
+| DIAG-01 | Phase 3 | Pending |
+| DIAG-02 | Phase 2 | Pending |
+| DIAG-03 | Phase 3 | Pending |
+| DIAG-04 | Phase 3 | Pending |
+| DIAG-05 | Phase 3 | Pending |
+| WORK-01 | Phase 4 | Pending |
+| WORK-02 | Phase 4 | Pending |
+| WORK-03 | Phase 4 | Pending |
+| WORK-04 | Phase 4 | Pending |
+| GUARD-01 | Phase 4 | Pending |
+| GUARD-02 | Phase 4 | Pending |
+| DONE-01 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 17 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17 (roadmap created)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-23*
-*Last updated: 2026-07-23 after initial definition*
+*Last updated: 2026-07-23 after roadmap creation (traceability mapped)*
