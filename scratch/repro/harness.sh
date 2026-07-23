@@ -310,6 +310,13 @@ cmd_run_iter() {
   local result_file="$it_dir/result.csv"
   : > "$result_file"
 
+  # WR-01: without a trap, a Ctrl-C or mid-iteration failure leaves the
+  # backgrounded qsvencc/ffmpeg jobs bound to renderD128, contaminating the
+  # next iteration's exclusivity gate. Kill any launched background PIDs and
+  # reap GPU clients on INT/TERM. ${p1:-} guards set -u once the locals go out
+  # of scope (they resolve to the in-function locals while the iteration runs).
+  trap 'for _pid in "${p1:-}" "${p2:-}" "${p3:-}" "${cp1:-}" "${cp2:-}" "${cp3:-}"; do [[ -n "$_pid" ]] && kill "$_pid" 2>/dev/null || true; done; cleanup_gpu_procs' INT TERM
+
   # --- Step 1: 3-way concurrent qsvencc measurement ---
   run_encode "$it_dir/log923.txt" qsvencc --avhw --va -i "$SRC" $COMMON \
     --seek "$SCENE_923_SEEK" --trim "$SCENE_923_TRIM" -o "$it_dir/c923.obu" &
