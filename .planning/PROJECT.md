@@ -24,12 +24,11 @@ A diagnose-and-resolve investigation into a silent, single-frame corruption that
 - ✓ **Reproducer recipe defined** — source `Cold.Eyes.2013.Bluray.Remux.mkv`, three harness scenes (923/928/1129) with exact seek/trim and known hotspot offsets/corrupt frames. — prior session (§4)
 - ✓ **Workaround solution space characterized** — A: `--avsw` (SW-decode, keeps 10-bit+B+DV/HDR, 0/60), B: `--jobs 1` (serialize, 0%), C: migrate to ffmpeg `av1_qsv` (clean but risky for DV), D: 8-bit, E: no-B. — prior session (§7)
 - ✓ **QSVEnc builds from source in this environment** — full toolchain validated; `qsvencc` (r4386, gcc 13.3) compiles and drives the Arc A380 (AV1 10-bit encode + HW decode confirmed via `--check-features`). — this environment
+- ✓ **Bug reproduced in THIS environment with a control-validated baseline** — calibrated harness (`scratch/repro/`) on the Arc A380 records, on-disk, N=20 3-way concurrency: 923/299 **9/20 (45%)**, 1129/299 **8/20 (40%)**, 928/96 **0/20**; corrupt-frame PSNR mean **12.96 dB** (σ 0.18, threshold <30 dB); paired ffmpeg `av1_qsv` immune control **0/20** clean; environment fingerprint confirms same-kernel `6.19.14-200.fc43`. Observed signature (~12.96 dB) differs from the prior session's 15.74 dB — the harness reports the OBSERVED value. Durable evidence: `.planning/phases/01-harness-control-environment-fingerprinting/01-EVIDENCE.md`. — Validated in Phase 1
 
 ### Active
 
 <!-- The mission for this GPU+/data environment. Hypotheses until confirmed. -->
-
-- [ ] Reproduce the bug in this environment and record frequency + PSNR signature under 3-way concurrency (with the ffmpeg `av1_qsv` immune control).
 - [ ] Resolve the host/kernel fork: confirm whether this host's kernel/GPU-driver differs from the affected `6.19.14-200.fc43` / i915, and whether that changes reproduction.
 - [ ] Test untried in-place host-side levers: switch Arc (Alchemist/DG2) from `i915` to the `Xe` driver; update GuC/HuC firmware; try pure VA-API `av1_vaapi` as a quieter path.
 - [ ] Produce a correctness-first recommendation for `enpipe` (which §7 workaround), backed by measured throughput numbers in this environment.
@@ -88,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-23 after initialization*
+*Last updated: 2026-07-23 after Phase 1 complete — control-validated reproduction baseline recorded on-disk in this environment*
