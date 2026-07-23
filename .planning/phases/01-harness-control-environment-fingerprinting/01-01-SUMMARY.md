@@ -117,6 +117,10 @@ None - no external service configuration required. All tooling (`qsvencc`, `ffmp
 - Open Question 1 from 01-RESEARCH.md (whether the corrupt frame's *content* actually originates from a concurrent session's scene, not just the PSNR-drop symptom) remains explicitly deferred to Phase 2, as stated in this batch's printed summary's Mechanism-vs-symptom NOTE.
 - No blockers. `scratch/repro/` retains all 20 iterations' raw `.obu`/`.png`/log outputs plus `report.csv`/`summary.txt` for downstream phases to inspect or diff against.
 
+## Self-Check: PASSED
+
+All files referenced above verified present on disk (`scratch/repro/harness.sh`, `lib.sh`, `.gitignore`, `fingerprint.txt`, `reference/frame299_ref.png`, `control_reference/c923_ffref.obu`, `report.csv`, this SUMMARY.md). All four task/plan commit hashes (`d3c53fed`, `618bb108`, `35f760fb`, `7456aaf0`) verified present in `git log`.
+
 ---
 *Phase: 01-harness-control-environment-fingerprinting*
 *Completed: 2026-07-23*

@@ -9,11 +9,11 @@ Requirements for this investigation milestone. Each maps to a roadmap phase.
 
 ### Reproduction & Control
 
-- [ ] **REPRO-01**: Fingerprint the environment — record `uname -r`, the bound GPU driver (i915 vs Xe), iHD/VA-API version, and GuC/HuC firmware — and state whether it matches the affected host kernel `6.19.14-200.fc43`.
-- [ ] **REPRO-02**: A deterministic reproduction harness runs 3 concurrent `qsvencc` sessions on scenes 923/928/1129 with the exact seek/trim from the handoff, writing all outputs to an isolated writable workdir (never to `/data` sources).
-- [ ] **REPRO-03**: The harness produces a bit-clean single-session reference frame (scene 923, offset 299) and classifies a test frame as corrupt via external-ffmpeg PSNR vs that reference (`<30 dB` = corrupt; known signature ≈15.74 dB).
-- [ ] **REPRO-04**: A paired ffmpeg `av1_qsv` immune-control run (HW h264_qsv decode + P010 + GopRefDist6 pyramid) executes alongside every qsvencc measurement and is confirmed clean (0/N), validating the harness itself.
-- [ ] **REPRO-05**: Baseline corruption frequency and PSNR signature are reported over a detection-sized sample (~15–20 iterations), explicitly separating detection-N from the larger validation-N used for fix claims.
+- [x] **REPRO-01**: Fingerprint the environment — record `uname -r`, the bound GPU driver (i915 vs Xe), iHD/VA-API version, and GuC/HuC firmware — and state whether it matches the affected host kernel `6.19.14-200.fc43`.
+- [x] **REPRO-02**: A deterministic reproduction harness runs 3 concurrent `qsvencc` sessions on scenes 923/928/1129 with the exact seek/trim from the handoff, writing all outputs to an isolated writable workdir (never to `/data` sources).
+- [x] **REPRO-03**: The harness produces a bit-clean single-session reference frame (scene 923, offset 299) and classifies a test frame as corrupt via external-ffmpeg PSNR vs that reference (`<30 dB` = corrupt; known signature ≈15.74 dB).
+- [x] **REPRO-04**: A paired ffmpeg `av1_qsv` immune-control run (HW h264_qsv decode + P010 + GopRefDist6 pyramid) executes alongside every qsvencc measurement and is confirmed clean (0/N), validating the harness itself.
+- [x] **REPRO-05**: Baseline corruption frequency and PSNR signature are reported over a detection-sized sample (~15–20 iterations), explicitly separating detection-N from the larger validation-N used for fix claims.
 
 ### Host-Side Diagnosis
 
@@ -66,11 +66,11 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REPRO-01 | Phase 1 | Pending |
-| REPRO-02 | Phase 1 | Pending |
-| REPRO-03 | Phase 1 | Pending |
-| REPRO-04 | Phase 1 | Pending |
-| REPRO-05 | Phase 1 | Pending |
+| REPRO-01 | Phase 1 | Complete |
+| REPRO-02 | Phase 1 | Complete |
+| REPRO-03 | Phase 1 | Complete |
+| REPRO-04 | Phase 1 | Complete |
+| REPRO-05 | Phase 1 | Complete |
 | DIAG-01 | Phase 3 | Pending |
 | DIAG-02 | Phase 2 | Pending |
 | DIAG-03 | Phase 3 | Pending |
