@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 gap-closure planned (01-02-PLAN.md, plan-checker PASSED) — closes 4 blocking artifact gaps
-last_updated: "2026-07-23T06:00:00.000Z"
-last_activity: 2026-07-23 -- Phase 01 gap-closure plan created (01-02)
+stopped_at: Completed 01-02-PLAN.md — Phase 1 baseline persisted and evidence-locked
+last_updated: "2026-07-23T06:46:37.855Z"
+last_activity: 2026-07-23 -- Phase 01 execution started
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 20
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 01 (harness-control-environment-fingerprinting) — EXECUTING
-Plan: 1 of 1
+Plan: 2 of 2
 Status: Executing Phase 01
 Last activity: 2026-07-23 -- Phase 01 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: N/A
 
 *Updated after each plan completion*
+| Phase 01 P02 | 20min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,7 @@ Recent decisions affecting current work:
 - Roadmap: Investigation framed as 5 coarse phases (harness/control → av1_vaapi triangulation → host-side levers → workaround+gate → synthesis), not a code build.
 - Roadmap: Defense-in-depth gate design folded into Phase 4 (Workaround Recommendation) rather than a standalone phase, per coarse granularity.
 - Roadmap: GPU-exclusivity and single-variable-per-reboot discipline apply as standing operating rules across all phases (Pitfalls 1 and 3), not as one-time setup steps.
+- [Phase 01]: Ran plan 01-02 entirely on the main working tree (no worktree isolation) per its hard execution_constraint, regenerating the git-ignored scratch/repro/ baseline the first execution's git worktree remove had destroyed — Prevents repeating the original evidence-loss failure mode; observed re-run baseline (923/299 9/20 45.0%, 1129/299 8/20 40.0%, 928/96 0/20, control 0/20) is now persisted both on disk and in a git-tracked 01-EVIDENCE.md snapshot
 
 ### Pending Todos
 
@@ -84,6 +86,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-23T04:32:04.980Z
-Stopped at: Phase 1 replanned with review feedback (plan-checker re-PASSED)
-Resume file: .planning/phases/01-harness-control-environment-fingerprinting/01-01-PLAN.md
+Last session: 2026-07-23T06:46:37.834Z
+Stopped at: Completed 01-02-PLAN.md — Phase 1 baseline persisted and evidence-locked
+Resume file: None

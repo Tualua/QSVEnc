@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans (1 execute + 1 gap-closure)
 Plans:
 - [x] 01-01-PLAN.md — Reproduction harness: environment probe, bit-clean reference, 3-way concurrent runner, PSNR classifier, paired av1_qsv immune control, detection-N=20 baseline report
-- [ ] 01-02-PLAN.md — Gap closure: re-run the completed harness on the main tree (no worktree isolation) to persist the missing on-disk fingerprint/reference/control-reference/report.csv/summary.txt evidence, verify the CR-01 fail-open fix end-to-end, and capture a git-tracked 01-EVIDENCE.md snapshot
+- [x] 01-02-PLAN.md — Gap closure: re-run the completed harness on the main tree (no worktree isolation) to persist the missing on-disk fingerprint/reference/control-reference/report.csv/summary.txt evidence, verify the CR-01 fail-open fix end-to-end, and capture a git-tracked 01-EVIDENCE.md snapshot
 
 ### Phase 2: In-Container Triangulation — av1_vaapi
 **Mode:** mvp
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Harness, Control & Environment Fingerprinting | 1/2 | Gap closure pending | - |
+| 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
 | 2. In-Container Triangulation — av1_vaapi | 0/TBD | Not started | - |
 | 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
 | 4. Workaround Recommendation & Defense-in-Depth Gate | 0/TBD | Not started | - |
