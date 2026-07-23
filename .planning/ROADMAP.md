@@ -56,7 +56,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — av1_vaapi command builder (D-01) + D-02 capability probe (PTS/DTS reorder, P010, HW-VA decode → vaapi_probe.txt) + determinism-confirmed av1_vaapi self-reference (D-04/D-05)
+- [x] 02-01-PLAN.md — av1_vaapi command builder (D-01) + D-02 capability probe (PTS/DTS reorder, P010, HW-VA decode → vaapi_probe.txt) + determinism-confirmed av1_vaapi self-reference (D-04/D-05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -127,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
-| 2. In-Container Triangulation — av1_vaapi | 0/5 | Planned | - |
+| 2. In-Container Triangulation — av1_vaapi | 1/5 | In Progress|  |
 | 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
 | 4. Workaround Recommendation & Defense-in-Depth Gate | 0/TBD | Not started | - |
 | 5. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |
