@@ -79,13 +79,21 @@ run_encode() {
 # never a blanket pkill (T-01-04).
 # ---------------------------------------------------------------------------
 cleanup_gpu_procs() {
+  local line pid cmd
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    local pid cmd
     pid="${line#PID }"; pid="${pid%%:*}"
     cmd="${line#*: }"
-    if [[ "$cmd" == *qsvencc* || "$cmd" == *ffmpeg* ]]; then
-      kill -9 "$pid" 2>/dev/null || true
-    fi
+    # Only ever target our own qsvencc/ffmpeg PIDs (never a blanket pkill).
+    [[ "$cmd" == *qsvencc* || "$cmd" == *ffmpeg* ]] || continue
+    # WR-07: re-verify the cmdline at KILL time. Between gpu_clients() listing
+    # and this kill, the PID can be reaped and reused by an unrelated process;
+    # checking the live /proc/$pid/cmdline avoids SIGKILLing a recycled PID.
+    grep -qaE 'qsvencc|ffmpeg' "/proc/$pid/cmdline" 2>/dev/null || continue
+    # Prefer graceful termination first so the target can release its GPU/VA
+    # surfaces cleanly; SIGKILL leaves them bound and aggravates async release.
+    kill "$pid" 2>/dev/null || true
+    sleep 0.2
+    kill -9 "$pid" 2>/dev/null || true
   done < <(gpu_clients)
 }
