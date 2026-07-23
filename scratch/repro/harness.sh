@@ -150,7 +150,7 @@ cmd_reference() {
   fi
   echo "reference frame-count gate OK: nb_read_frames=$nb_frames, offset $SCENE_923_OFF in range"
 
-  ffmpeg -y -i "$W/reference/chunk923_ref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
+  ffmpeg -y -nostdin -i "$W/reference/chunk923_ref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
     "$W/reference/frame299_ref.png" -hide_banner -loglevel error \
     || { echo "ABORT: reference frame extraction failed" >&2; exit 1; }
   echo "reference frame extracted: $W/reference/frame299_ref.png"
@@ -164,7 +164,7 @@ cmd_reference() {
     require_gpu_exclusive || { echo "ABORT: control-reference step requires exclusive GPU access" >&2; exit 1; }
     ctrl_encode "$SCENE_923_SEEK" 339 "$W/control_reference/c923_ffref.obu" \
       || { echo "ABORT: control reference encode failed" >&2; exit 1; }
-    ffmpeg -y -i "$W/control_reference/c923_ffref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
+    ffmpeg -y -nostdin -i "$W/control_reference/c923_ffref.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
       "$W/control_reference/ffref_299.png" -hide_banner -loglevel error \
       || { echo "ABORT: control reference frame extraction failed" >&2; exit 1; }
     echo "control reference generated: $W/control_reference/c923_ffref.obu"
@@ -180,7 +180,7 @@ cmd_reference() {
 ctrl_encode() {
   local seek="$1" frames="$2" out="$3"
   local logfile="${out%.obu}.log"
-  run_encode "$logfile" ffmpeg -y -hwaccel qsv -hwaccel_output_format qsv -c:v h264_qsv \
+  run_encode "$logfile" ffmpeg -y -nostdin -hwaccel qsv -hwaccel_output_format qsv -c:v h264_qsv \
     -ss "$seek" -i "$SRC" -frames:v "$frames" \
     -vf "vpp_qsv=format=p010le" \
     -c:v av1_qsv -profile:v main -g 300 -bf 5 -refs 4 -global_quality 24 -look_ahead_depth 0 \
@@ -246,7 +246,7 @@ ensure_scene_reference() {
   require_gpu_exclusive || { echo "ABORT: reference generation for scene $scene requires exclusive GPU access" >&2; return 1; }
   qsvencc --avhw --va -i "$SRC" $COMMON --seek "$seek" --trim "$trim" -o "$obu" \
     || { echo "ABORT: reference encode for scene $scene failed" >&2; return 1; }
-  ffmpeg -y -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
+  ffmpeg -y -nostdin -i "$obu" -vf "select='eq(n\,$off)'" -vsync 0 -frames:v 1 "$png" -hide_banner -loglevel error \
     || { echo "ABORT: reference frame extraction for scene $scene failed" >&2; return 1; }
   return 0
 }
@@ -258,7 +258,7 @@ ensure_scene_reference() {
 # ---------------------------------------------------------------------------
 psnr_of() {
   local test_png="$1" ref_png="$2" statsfile="$3"
-  LC_ALL=C ffmpeg -y -i "$test_png" -i "$ref_png" -lavfi "psnr=stats_file=$statsfile" \
+  LC_ALL=C ffmpeg -y -nostdin -i "$test_png" -i "$ref_png" -lavfi "psnr=stats_file=$statsfile" \
     -f null - -hide_banner -loglevel error
   awk -F'psnr_avg:' '{split($2,a," "); print a[1]}' "$statsfile"
 }
@@ -417,7 +417,7 @@ cmd_run_iter() {
     control_clean="0"
   else
     local ctrl_psnr
-    ffmpeg -y -i "$ctrl_dir/c923.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
+    ffmpeg -y -nostdin -i "$ctrl_dir/c923.obu" -vf "select='eq(n\,$SCENE_923_OFF)'" -vsync 0 -frames:v 1 \
       "$ctrl_dir/frame299.png" -hide_banner -loglevel error
     ctrl_psnr="$(psnr_of "$ctrl_dir/frame299.png" "$W/control_reference/ffref_299.png" "$ctrl_dir/psnr.log")"
     if [[ "$ctrl_psnr" == "inf" ]]; then
