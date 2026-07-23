@@ -101,3 +101,11 @@ None - no external service configuration required.
 ---
 *Phase: 02-in-container-triangulation-av1-vaapi*
 *Completed: 2026-07-23*
+
+## Self-Check: PASSED
+
+- FOUND: scratch/repro/harness.sh
+- FOUND: .planning/phases/02-in-container-triangulation-av1-vaapi/02-02-SUMMARY.md
+- FOUND: scratch/repro/report_vaapi.csv (git-ignored runtime artifact, verified on disk)
+- FOUND: commit 15b0e523 (Task 1)
+- FOUND: commit 6d676f74 (Task 2)
