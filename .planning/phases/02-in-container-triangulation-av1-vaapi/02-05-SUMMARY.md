@@ -115,3 +115,11 @@ None - no external service configuration required.
 ---
 *Phase: 02-in-container-triangulation-av1-vaapi*
 *Completed: 2026-07-23*
+
+## Self-Check: PASSED
+
+- FOUND: .planning/phases/02-in-container-triangulation-av1-vaapi/02-EVIDENCE.md
+- FOUND: .planning/phases/02-in-container-triangulation-av1-vaapi/02-05-SUMMARY.md
+- FOUND: commit 7546e112 (Task 1+2 combined, docs)
+- FOUND: commit 5dbca6c9 (SUMMARY, docs)
+- Re-ran both tasks' independent `<verify><automated>` grep checks against the committed 02-EVIDENCE.md: TASK1 PASS, TASK2 PASS
