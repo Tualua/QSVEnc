@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: "02.1"
 current_phase_name: Source-Level Fix — qsvencc Surface Sync & Lifetime
-status: executing
-stopped_at: Completed_02.1-03-PLAN.md
-last_updated: "2026-10-01T12:32:42.289Z"
+status: verifying
+stopped_at: Completed 02.1-04-PLAN.md (upstream PR draft prepared, not pushed)
+last_updated: "2026-10-01T14:02:37.236Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 02.1 execution started
-state_head: 92ad93c019d4cf24c6e9191a9abdcbdfeb585779
+state_head: b24348d28478c8c375700c6f206ca890b4d9f80a
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 milestone_name: milestone
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 Phase: 02.1 (Source-Level Fix — qsvencc Surface Sync & Lifetime) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-01 — Phase 02.1 execution started
 
 Progress: [██████████] 100%
@@ -69,6 +69,7 @@ Progress: [██████████] 100%
 | Phase 02.1 P01 | 52 min | 3 tasks | 3 files |
 | Phase 02.1 P02 | 26 min | 3 tasks | 5 files |
 | Phase 02.1 P03 | multi-session | 4 tasks | 1 files |
+| Phase 02.1 P04 | continuation ~1.5h | 4 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,7 @@ Recent decisions affecting current work:
 - [Phase 02.1]: 02.1-02: D-03 gate FAIL with tracing on (6/40 < 7, control 0/20) - traces not trusted; 02.1-03 uses D-05 coarse toggles of diag-T2 with tracing OFF after a fresh toggles-off positive control
 - [Phase 02.1]: 02.1-02: diag-T2 shows mid-stream drift mode 6/60 md5-D cells; md5 oracle mandatory on every batch
 - [Phase 02.1]: X9s_sham_sync_0of20_supports_timing_final_path_fix-path_X5_timing-workaround
+- [Phase 02.1]: Upstream PR on 15cd6879 prepared as draft for discussion (pr/vpp-enc-sync 362bde63); upstream output identical to 8.31 references; single-session cost re-measured ~0 to -3 percent (earlier -9..-19 superseded); not pushed
 
 ### Pending Todos
 
@@ -119,6 +121,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T12:32:41.970Z
-Stopped at: Completed_02.1-03-PLAN.md
+Last session: 2026-10-01T14:02:36.999Z
+Stopped at: Completed 02.1-04-PLAN.md (upstream PR draft prepared, not pushed)
 Resume file: None
