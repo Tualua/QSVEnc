@@ -15,6 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Harness, Control & Environment Fingerprinting** - Build and calibrate the reproduction harness, mandatory ffmpeg `av1_qsv` immune control, and environment fingerprint; confirm baseline corruption signature in this environment. (completed 2026-07-23)
 - [x] **Phase 2: In-Container Triangulation — av1_vaapi** - Test the pure VA-API path as a cheap, unblocked data point that reshapes interpretation of later host-side and workaround findings. (completed 2026-07-23)
+- [ ] **Phase 2.1: Source-Level Fix — qsvencc Surface Sync & Lifetime** (INSERTED) - Diff qsvencc vs ffmpeg surface sync/lifetime under concurrency and validate source patches with the Phase-1 harness on an 8.31 build.
 - [ ] **Phase 3: Host-Side Levers — Firmware & Xe Migration** - Exhaust the untried in-place kernel/driver levers, one variable per reboot, honestly reporting blocked levers as recommended-but-blocked.
 - [ ] **Phase 4: Workaround Recommendation & Defense-in-Depth Gate** - Deliver a measured, correctness-first `enpipe` workaround recommendation and a root-cause-independent content-verification gate design.
 - [ ] **Phase 5: Synthesis — Definition-of-Done Report** - Produce the final handoff report synthesizing reproduction, host-side, and recommendation findings.
@@ -73,6 +74,32 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 02-05-PLAN.md — Durable git-tracked 02-EVIDENCE.md: verbatim outputs + DIAG-02 mapping + explicit SC#2 interpretation + D-03 triad caveat + triangulation vs Phase-1 baseline
+
+### Phase 02.1: Source-Level Fix — qsvencc Surface Sync & Lifetime (INSERTED)
+
+**Mode:** mvp
+**Goal:** Find and fix, in qsvencc source (8.31 base), why concurrent `--avhw` + P010 + B-pyramid sessions emit a corrupted frame while ffmpeg `av1_qsv` with the same driver/kernel/trigger triad stays clean — by diffing how each manages surface synchronization and surface lifetime, then validating candidate patches with the unmodified Phase-1 harness.
+**Requirements**: TBD (fix-validation requirement to be added at discuss/plan time)
+**Depends on:** Phase 2; upstream 8.31 re-check (`.planning/research/UPSTREAM-8.31-RECHECK.md`)
+**Plans:** 4 plans
+
+**Why now (decided 2026-10-01):** 8.31 still reproduces (923 7/20, 1129 6/20, control 0/20). ffmpeg immunity on the SAME kernel contradicts the "root cause is kernel-only" conclusion — the driver can isolate sessions, so qsvencc's usage pattern differs. The earlier "source-patch line exhausted" verdict covered only surface attributes (`rt_format`, `UsageHint`) and `--async-depth 1`; synchronization and surface lifetime were never examined. Phase 3 stays in the roadmap (needs operator action on the host).
+
+**Hypotheses to examine (not yet ranked):**
+1. Sync ordering: when a decode/VPP output surface is handed downstream vs `SyncOperation`/`vaSyncSurface` completion (qsvencc vs ffmpeg).
+2. Surface lifetime/reuse: a surface returned to the per-edge pool (`AllocFrames()`, `qsv_pipeline.cpp`) while still referenced — B-pyramid + GopRefDist 6 holds references longer.
+3. External allocator (qsvencc `QSVAllocatorVA`) vs ffmpeg's `AVHWFramesContext` per component.
+
+**Success Criteria** (what must be TRUE):
+  1. A root-cause hypothesis is confirmed or refuted by measurement for each candidate examined (harness, N=20 detection, paired control).
+  2. Any patch claimed as a fix passes ~60 zero-failure 3-way iterations on scenes 923/1129 (rule-of-three), with control 0/N and no regression in single-session bit-exactness.
+  3. Working tree: build in worktree `/workspaces/qsvenc-831` (tag 8.31); harness copy in `scratch/repro-831/` (Phase-1 baseline in `scratch/repro/` untouched); run on main tree, worktree isolation OFF for `scratch/` outputs.
+
+Plans:
+- [ ] 02.1-01-PLAN.md — stock positive control through the candidate pipeline (tracer); FIX-01 registration; D-01/D-04 on record; X1 pool dump, X2/X3 shim screens
+- [ ] 02.1-02-PLAN.md — diag/surf-trace build: in-memory surface trace + default-off coarse toggles; bit-exactness; X4 D-03 reproduce gate + D-vs-S trace analysis
+- [ ] 02.1-03-PLAN.md — lever screens X5/X6/X7a/X7b (+ conditional D-06 allocator); per-hypothesis verdicts; operator path decision
+- [ ] 02.1-04-PLAN.md — fix commit + 60-iteration validation + md5 + bit-exactness + fps + format-patch (or negative close); upstream draft update only
 
 ### Phase 3: Host-Side Levers — Firmware & Xe Migration
 
