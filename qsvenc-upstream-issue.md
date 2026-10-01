@@ -115,4 +115,4 @@ Original observation (before the investigation above): one difference we noticed
 
 We have a scripted harness: it checks GPU exclusivity, builds a bit-exact reference, runs the paired ffmpeg control and computes Wilson confidence intervals. We can run additional experiments or debug builds if that helps. Open questions we have not answered: the below-API cause of the timing window, behaviour on other GPUs/driver stacks and with 2-way/4-way concurrency, and whether the wait should be unconditional or applied only when a VPP stage feeds the encoder.
 
-*(Draft: not yet published.)*
+*(Draft. The patch was published as draft PR rigaya/QSVEnc#316 on 2026-10-01; this issue text itself is not yet published.)*
