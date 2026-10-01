@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Harness, Control & Environment Fingerprinting** - Build and calibrate the reproduction harness, mandatory ffmpeg `av1_qsv` immune control, and environment fingerprint; confirm baseline corruption signature in this environment. (completed 2026-07-23)
 - [x] **Phase 2: In-Container Triangulation — av1_vaapi** - Test the pure VA-API path as a cheap, unblocked data point that reshapes interpretation of later host-side and workaround findings. (completed 2026-07-23)
-- [ ] **Phase 2.1: Source-Level Fix — qsvencc Surface Sync & Lifetime** (INSERTED) - Diff qsvencc vs ffmpeg surface sync/lifetime under concurrency and validate source patches with the Phase-1 harness on an 8.31 build.
+- [x] **Phase 2.1: Source-Level Fix — qsvencc Surface Sync & Lifetime** (INSERTED) - Diff qsvencc vs ffmpeg surface sync/lifetime under concurrency and validate source patches with the Phase-1 harness on an 8.31 build. (completed 2026-10-01)
 - [ ] **Phase 3: Host-Side Levers — Firmware & Xe Migration** - Exhaust the untried in-place kernel/driver levers, one variable per reboot, honestly reporting blocked levers as recommended-but-blocked.
 - [ ] **Phase 4: Workaround Recommendation & Defense-in-Depth Gate** - Deliver a measured, correctness-first `enpipe` workaround recommendation and a root-cause-independent content-verification gate design.
 - [ ] **Phase 5: Synthesis — Definition-of-Done Report** - Produce the final handoff report synthesizing reproduction, host-side, and recommendation findings.
@@ -81,7 +81,7 @@ Plans:
 **Goal:** Find and fix, in qsvencc source (8.31 base), why concurrent `--avhw` + P010 + B-pyramid sessions emit a corrupted frame while ffmpeg `av1_qsv` with the same driver/kernel/trigger triad stays clean — by diffing how each manages surface synchronization and surface lifetime, then validating candidate patches with the unmodified Phase-1 harness.
 **Requirements**: FIX-01
 **Depends on:** Phase 2; upstream 8.31 re-check (`.planning/research/UPSTREAM-8.31-RECHECK.md`)
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans complete
 
 **Why now (decided 2026-10-01):** 8.31 still reproduces (923 7/20, 1129 6/20, control 0/20). ffmpeg immunity on the SAME kernel contradicts the "root cause is kernel-only" conclusion — the driver can isolate sessions, so qsvencc's usage pattern differs. The earlier "source-patch line exhausted" verdict covered only surface attributes (`rt_format`, `UsageHint`) and `--async-depth 1`; synchronization and surface lifetime were never examined. Phase 3 stays in the roadmap (needs operator action on the host).
 

@@ -27,7 +27,7 @@ qsvencc --avhw --va -i <source> -c av1 --icq 24 --qp-max 100 --output-depth 10 -
   --seek <chunk start> --trim 0:<frames> -o <out>.obu
 ```
 
-Each output is compared with the single-session output of the same chunk (whole-file md5, plus PSNR of the frame at the end of the chunk; PSNR < 30 dB counts as corrupt, the corrupt frame scores about 12.8 dB). Single-session outputs are bit-exact between runs. Details and the scripted harness are in #308.
+Each output is compared with the single-session output of the same chunk (whole-file md5, plus PSNR of the frame at the end of the chunk; PSNR < 30 dB counts as corrupt, the corrupt frame scores about 12.8 dB). Single-session outputs are bit-exact between runs. I can share the scripted harness (bash + ffmpeg, OpenCL-free) and exact chunk positions on request.
 
 ## Root-cause analysis
 
