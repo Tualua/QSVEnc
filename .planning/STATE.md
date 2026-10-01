@@ -1,17 +1,19 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.0
-milestone_name: milestone
+current_phase: "02.1"
 status: ready_to_plan
-stopped_at: Phase 02 complete (5/5) — ready to discuss Phase 3
-last_updated: 2026-07-23T12:12:01.677Z
-last_activity: 2026-07-23 -- Phase 02 execution started
+stopped_at: Phase 02.1 context gathered
+last_updated: "2026-10-01T08:01:56.878Z"
+last_activity: 2026-10-01
+last_activity_desc: upstream 8.31 re-check (bug reproduces), phase 02.1 inserted
+state_head: 19c58b7f00445a50cd9b8aa4a1630807e3400e77
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 2
   total_plans: 7
   completed_plans: 7
-  percent: 40
+milestone_name: milestone
 ---
 
 # Project State
@@ -21,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Correctness is non-negotiable — no encoded frame may ever silently contain content from another concurrent session.
-**Current focus:** Phase 3 — host side levers — firmware & xe migration
+**Current focus:** Phase 02.1 — source-level fix: qsvencc surface sync & lifetime
 
 ## Current Position
 
-Phase: 3
+Phase: 02.1
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-23
+Status: Ready to discuss
+Last activity: 2026-10-01 -- upstream 8.31 re-check (bug reproduces), phase 02.1 inserted
 
 Progress: [██████████] 100%
 
@@ -79,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Full historical qsvencc content-origin cross-match (D-09/D-10) completed: 0/17 corrupt frames confirmed as cross-session content swaps (>=35 dB); best cross-scene PSNR 10.49-18.57 dB -- Phase 1's Mechanism-vs-symptom NOTE stays OPEN, not closed
 - [Phase 02]: av1_vaapi corrupt-path cross-match wired and verified N/A (0/20 corrupt this batch, PARTIAL-TRIAD, as expected)
 - [Phase 02]: 02-EVIDENCE.md confirmed all four av1_vaapi source files present/current before writing -- no harness re-run needed
+- [2026-10-01]: Upstream QSVEnc 8.23–8.31 do not fix the bug — 8.31 (r4604) reproduces 923 7/20, 1129 6/20, 928 0/20, control 0/20, corrupt PSNR 12.83 dB. Evidence: .planning/research/UPSTREAM-8.31-RECHECK.md. Corroboration: rigaya/QSVEnc #308.
+- [2026-10-01]: Direction chosen — new attempt to FIX via qsvencc source (Phase 02.1: surface sync & lifetime vs ffmpeg), executed before Phase 3. Rationale: ffmpeg is clean on the same kernel, so the "kernel-only" root-cause verdict is contradicted; prior "source line exhausted" covered only surface attributes/async-depth.
+- [2026-10-01]: Operator communication language is Russian (config response_language: Russian).
 - [Phase 02]: Interpretation branch matched the REAL PARTIAL-TRIAD/0-20-clean data: immunity NOT proven (not the full-triad-clean or corrupt branch)
 
 ### Pending Todos
@@ -101,6 +106,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-23T11:53:09.640Z
-Stopped at: Completed 02-04-PLAN.md
-Resume file: .planning/phases/02-in-container-triangulation-av1-vaapi/02-04-SUMMARY.md
+Last session: 2026-10-01T08:01:56.656Z
+Stopped at: Phase 02.1 context gathered
+Resume file: .planning/phases/02.1-source-level-fix-qsvencc-surface-sync-lifetime/02.1-CONTEXT.md
