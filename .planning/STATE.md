@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: "02.1"
 current_phase_name: Source-Level Fix — qsvencc Surface Sync & Lifetime
 status: executing
-stopped_at: Completed 02.1-02-PLAN.md
-last_updated: "2026-10-01T11:20:52.906Z"
+stopped_at: Completed_02.1-03-PLAN.md
+last_updated: "2026-10-01T12:32:42.289Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 02.1 execution started
-state_head: a0403a1991d2ad1bfe420dd1cc0f4ee60358873c
+state_head: 92ad93c019d4cf24c6e9191a9abdcbdfeb585779
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 02.1 (Source-Level Fix — qsvencc Surface Sync & Lifetime) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-10-01 — Phase 02.1 execution started
 
@@ -68,6 +68,7 @@ Progress: [██████████] 100%
 |------|----------|-------|-------|
 | Phase 02.1 P01 | 52 min | 3 tasks | 3 files |
 | Phase 02.1 P02 | 26 min | 3 tasks | 5 files |
+| Phase 02.1 P03 | multi-session | 4 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,7 @@ Recent decisions affecting current work:
 - [Phase 02.1]: 02.1-01: X2 refutes M6 (tune/scenario inert); X3 --max-procfps 60 gives 0/20 tail corruption = timing-sensitive; pools DEC->VPP 23, VPP->ENC 20
 - [Phase 02.1]: 02.1-02: D-03 gate FAIL with tracing on (6/40 < 7, control 0/20) - traces not trusted; 02.1-03 uses D-05 coarse toggles of diag-T2 with tracing OFF after a fresh toggles-off positive control
 - [Phase 02.1]: 02.1-02: diag-T2 shows mid-stream drift mode 6/60 md5-D cells; md5 oracle mandatory on every batch
+- [Phase 02.1]: X9s_sham_sync_0of20_supports_timing_final_path_fix-path_X5_timing-workaround
 
 ### Pending Todos
 
@@ -117,6 +119,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T11:20:52.551Z
-Stopped at: Completed 02.1-02-PLAN.md
+Last session: 2026-10-01T12:32:41.970Z
+Stopped at: Completed_02.1-03-PLAN.md
 Resume file: None
