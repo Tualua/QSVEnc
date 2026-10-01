@@ -1,0 +1,1 @@
+[Draft] Wait for the VPP output syncpoint before encoding (silent stale frame under concurrent sessions, #308)

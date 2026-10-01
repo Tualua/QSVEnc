@@ -86,7 +86,7 @@ if (frame) { // frame is nullptr on the flush call
 }
 ```
 
-Measured cost: with 3-way concurrency the fps is unchanged within noise (60-iteration means 227.0 / 129.9 / 229.0 vs stock 226.6 / 131.2 / 230.1 for chunks 923 / 928 / 1129). A single session without contention is 9-19 % slower on these chunks (923: 310.7 -> 272.8 fps, 928: 226.1 -> 182.5, 1129: 312.8 -> 283.9), because the submission now waits for the VPP; single-session output stays bit-exact (6/6 identical md5). The patch has been tested only on this configuration (Arc A380, 3-way, these three chunks), and we have not tried to narrow it to multi-session use.
+Measured cost: with 3-way concurrency the fps is unchanged within noise (60-iteration means 227.0 / 129.9 / 229.0 vs stock 226.6 / 131.2 / 230.1 for chunks 923 / 928 / 1129). A single session without contention shows no significant cost when stock and patched builds are run back to back (8.31: 315.1 / 227.1 / 315.2 fps stock vs 316.5 / 226.0 / 311.3 patched; upstream master 15cd6879, 6 encodes per chunk: 313.2 / 229.0 / 313.2 vs 312.9 / 222.5 / 311.9, i.e. -0.1 / -2.9 / -0.4 %); an earlier measurement that showed -9 to -19 % was not reproducible and is superseded. Single-session output stays bit-exact (6/6 identical md5). The patch has been tested only on this configuration (Arc A380, 3-way, these three chunks), and we have not tried to narrow it to multi-session use.
 
 ### What we have ruled out
 
@@ -113,6 +113,6 @@ Original observation (before the investigation above): one difference we noticed
 
 ### Additional notes
 
-We have a scripted harness: it checks GPU exclusivity, builds a bit-exact reference, runs the paired ffmpeg control and computes Wilson confidence intervals. We can run additional experiments or debug builds if that helps. Open questions we have not answered: the below-API cause of the timing window, behaviour on other GPUs/driver stacks and with 2-way/4-way concurrency, and whether the single-session cost of the patch can be avoided by applying the wait only when several sessions share the GPU.
+We have a scripted harness: it checks GPU exclusivity, builds a bit-exact reference, runs the paired ffmpeg control and computes Wilson confidence intervals. We can run additional experiments or debug builds if that helps. Open questions we have not answered: the below-API cause of the timing window, behaviour on other GPUs/driver stacks and with 2-way/4-way concurrency, and whether the wait should be unconditional or applied only when a VPP stage feeds the encoder.
 
 *(Draft: not yet published.)*
