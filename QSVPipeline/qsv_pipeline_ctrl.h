@@ -2608,6 +2608,11 @@ public:
             PrintMes(RGY_LOG_ERROR, _T("Invalid frame type.\n"));
             return RGY_ERR_UNSUPPORTED;
         }
+        // wait for the VPP output syncpoint before handing the surface to the encoder.
+        // without this, when several sessions share one GPU, the encoder could encode a stale input surface (see issue #308)
+        if (frame) { // frame is nullptr on the flush call
+            frame->waitsync();
+        }
 
         auto bsOut = m_bitStreamOut.get([enc = m_encode, log = m_log](RGYBitstream *bs) {
             mfxVideoParam par = { 0 };
