@@ -6,7 +6,7 @@ Refs #308.
 
 When several QSVEncC sessions share one GPU, one frame of an encode can come out wrong: the last mini-GOP anchor before a forced IDR is encoded from a stale input surface (an earlier frame of the *same* session). There is no error or warning; the bitstream is valid and the encoder reports success.
 
-The patch adds a `frame->waitsync()` in `PipelineTaskMFXEncode::sendFrame()`, before `EncodeFrameAsync()`. This serializes the VPP -> encoder hand-off, as the ffmpeg QSV path does. The change is 5 lines in `QSVPipeline/qsv_pipeline_ctrl.h`; the flush call (no frame) is unaffected.
+The patch adds a `frame->waitsync()` in `PipelineTaskMFXEncode::sendFrame()`, before `EncodeFrameAsync()`, and returns an error if the wait fails. This serializes the VPP -> encoder hand-off. ffmpeg's QSV path, which does not show the problem in my tests, also waits for each VPP output before it reaches the encoder, although it does so on the VPP side and with a retry loop. The change is 10 lines in `QSVPipeline/qsv_pipeline_ctrl.h`; the flush call (no frame) is unaffected.
 
 ## Symptom and trigger conditions
 
@@ -37,7 +37,7 @@ What I measured (8.31 tag, same configuration):
 - It behaves like a timing window. The corruption disappears with: waiting for the VPP syncpoint before `EncodeFrameAsync` (this patch), waiting after decode, an untargeted CPU sleep before `EncodeFrameAsync` with no sync at all (0.85 ms, the mean real wait, and 4 ms), `--max-procfps 60`, and `LIBVA_TRACE`.
 - It is not affected by a larger surface pool (+16) or by round-robin surface reuse. The surface pools are not exhausted.
 
-Honest conclusion: the fact that an untargeted delay also hides it means I cannot show that the encoder reads a surface the VPP has not finished writing, and I cannot show that the application is missing an API-level dependency. The ordering problem probably lies below the API (driver / runtime / kernel cross-context fencing), which I could not observe directly. The patch is therefore a workaround that closes the window by serializing the VPP -> encoder hand-off like ffmpeg's QSV path, which is immune in my tests.
+Honest conclusion: the fact that an untargeted delay also hides it means I cannot show that the encoder reads a surface the VPP has not finished writing, and I cannot show that the application is missing an API-level dependency. The ordering problem probably lies below the API (driver / runtime / kernel cross-context fencing), which I could not observe directly. The patch is therefore a workaround that closes the window by serializing the VPP -> encoder hand-off. ffmpeg's QSV path, which is immune in my tests, also waits for the VPP output before encoding (on the producer side).
 
 ## Results
 
@@ -48,7 +48,8 @@ Counts are corrupt frames at the end of the chunk, per hot chunk (923 and 1129; 
 | 8.31 stock (baseline) | 20 | 7/20 | 6/20 | - | - |
 | 8.31 + patch | 60 | 0/60 | 0/60 | 180/180 identical | 6/6 |
 | upstream master 15cd6879 stock | 1 (stopped at first corrupt frame) | 1/1 | 0/1 | 923 differs, others identical | reference identical to 8.31 |
-| upstream master 15cd6879 + patch | 20 | 0/20 | 0/20 | 60/60 identical | 6/6 (and identical to the 8.31 reference md5s) |
+| upstream master 15cd6879 + patch (first version, without the error check) | 20 | 0/20 | 0/20 | 60/60 identical | 6/6 (and identical to the 8.31 reference md5s) |
+| upstream master 15cd6879 + patch (current version, with the error check) | 10 | 0/10 | 0/10 | 30/30 identical | 3/3 single-session outputs identical to the 8.31 reference md5s |
 
 Residual rate with the patch on 8.31: <= 5 % per iteration (rule of three, 0/60; exact one-sided 95 % bound 4.87 %). This is a statistical bound, not proof that the defect is gone. The upstream-master result is a 20-iteration screen only. Stock upstream master reproduces the bug (corrupt frame at 12.82 dB in the first iteration).
 

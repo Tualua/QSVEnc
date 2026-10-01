@@ -1,4 +1,4 @@
-From 362bde6379dbd006e4d7845fc54ffab4ec334d01 Mon Sep 17 00:00:00 2001
+From e6aab88c095917cd4701fb9677e89a39f209b201 Mon Sep 17 00:00:00 2001
 From: Tualua <dsp@mvdnet.org>
 Date: Thu, 1 Oct 2026 13:45:24 +0000
 Subject: [PATCH] Wait for the VPP output syncpoint before encoding to avoid
@@ -11,32 +11,40 @@ VA video memory, a P010 VPP stage and B-pyramid, with 2 or more concurrent
 sessions on an Arc A380 (Linux). See rigaya/QSVEnc#308.
 
 Wait for the syncpoint attached to the incoming frame in
-PipelineTaskMFXEncode::sendFrame() before calling EncodeFrameAsync(). This
-serializes the VPP -> encoder hand-off the same way the ffmpeg QSV path
-does; the flush call passes no frame and is unaffected.
+PipelineTaskMFXEncode::sendFrame() before calling EncodeFrameAsync(), and
+return an error if the wait fails. The flush call passes no frame and is
+unaffected. ffmpeg's QSV path, which does not show the problem, also waits
+for each VPP output before encoding (there on the VPP side, in a retry loop).
 
 With this change the corrupted frame appeared in 0 of 60 test iterations
-(on 8.31), versus 13 of 40 hot-scene encodes (about a third) without it. The root ordering problem probably lies
-below the API (driver/runtime); this is a workaround at the application
-level, not a proven fix of the underlying cause.
+(on 8.31), versus 13 of 40 hot-scene encodes without it. Because an
+unrelated delay before EncodeFrameAsync() also hides the problem, this looks
+like a timing window whose root cause probably lies below the API
+(driver/runtime); this change is a workaround, not a proven fix of the
+underlying cause.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- QSVPipeline/qsv_pipeline_ctrl.h | 5 +++++
- 1 file changed, 5 insertions(+)
+ QSVPipeline/qsv_pipeline_ctrl.h | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
 
 diff --git a/QSVPipeline/qsv_pipeline_ctrl.h b/QSVPipeline/qsv_pipeline_ctrl.h
-index 8911f98a..39e61e37 100644
+index 8911f98a..42b03814 100644
 --- a/QSVPipeline/qsv_pipeline_ctrl.h
 +++ b/QSVPipeline/qsv_pipeline_ctrl.h
-@@ -2863,6 +2863,11 @@ public:
+@@ -2863,6 +2863,16 @@ public:
              PrintMes(RGY_LOG_ERROR, _T("Invalid frame type.\n"));
              return RGY_ERR_UNSUPPORTED;
          }
-+        // wait for the VPP output syncpoint before handing the surface to the encoder.
-+        // without this, when several sessions share one GPU, the encoder could encode a stale input surface (see issue #308)
++        // Wait for the producer's (VPP) syncpoint before handing the surface to the encoder.
++        // Workaround: with several sessions on one GPU, the encoder could otherwise encode a stale input surface (#308).
++        // Measurements show a timing window (an unrelated delay also hides it), so this is not a proven missing dependency.
 +        if (frame) { // frame is nullptr on the flush call
-+            frame->waitsync();
++            auto err = frame->waitsync();
++            if (err != RGY_ERR_NONE) {
++                PrintMes(RGY_LOG_ERROR, _T("Failed to wait for the input frame before encoding: %s.\n"), get_err_mes(err));
++                return err;
++            }
 +        }
  
          auto bsOut = m_bitStreamOut.get([enc = m_encode, log = m_log](RGYBitstream *bs) {
