@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: "02.1"
 current_phase_name: Source-Level Fix — qsvencc Surface Sync & Lifetime
-status: ready_to_plan
-stopped_at: Phase 02.1 context gathered
-last_updated: "2026-10-01T09:51:06.293Z"
+status: executing
+stopped_at: Completed 02.1-01-PLAN.md
+last_updated: "2026-10-01T10:54:10.873Z"
 last_activity: 2026-10-01
-last_activity_desc: upstream 8.31 re-check (bug reproduces), phase 02.1 inserted
-state_head: cd9d50922f4aaa324052bc485aa34adda79ac3b5
+last_activity_desc: Phase 02.1 execution started
+state_head: 1cbfe31bb040b52b8ac823038c5eef329e7d183c
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 8
 milestone_name: milestone
 ---
 
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Correctness is non-negotiable — no encoded frame may ever silently contain content from another concurrent session.
-**Current focus:** Phase 02.1 — source-level fix: qsvencc surface sync & lifetime
+**Current focus:** Phase 02.1 — Source-Level Fix — qsvencc Surface Sync & Lifetime
 
 ## Current Position
 
-Phase: 02.1 (Source-Level Fix — qsvencc Surface Sync & Lifetime) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to discuss
-Last activity: 2026-10-01 -- upstream 8.31 re-check (bug reproduces), phase 02.1 inserted
+Phase: 02.1 (Source-Level Fix — qsvencc Surface Sync & Lifetime) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-10-01 — Phase 02.1 execution started
 
 Progress: [██████████] 100%
 
@@ -62,6 +62,11 @@ Progress: [██████████] 100%
 | Phase 02 P03 | 20min | 2 tasks | 1 files |
 | Phase 02 P04 | 92min | 3 tasks | 1 files |
 | Phase 02 P05 | 15min | 2 tasks | 1 files |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02.1 P01 | 52 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -86,6 +91,8 @@ Recent decisions affecting current work:
 - [2026-10-01]: Direction chosen — new attempt to FIX via qsvencc source (Phase 02.1: surface sync & lifetime vs ffmpeg), executed before Phase 3. Rationale: ffmpeg is clean on the same kernel, so the "kernel-only" root-cause verdict is contradicted; prior "source line exhausted" covered only surface attributes/async-depth.
 - [2026-10-01]: Operator communication language is Russian (config response_language: Russian).
 - [Phase 02]: Interpretation branch matched the REAL PARTIAL-TRIAD/0-20-clean data: immunity NOT proven (not the full-triad-clean or corrupt branch)
+- [Phase 02.1]: 02.1-01: instrument validated via T0b-stock fallback; md5 oracle (d01_md5) mandatory on every candidate because cand_screen is fail-open for a mid-stream drift mode
+- [Phase 02.1]: 02.1-01: X2 refutes M6 (tune/scenario inert); X3 --max-procfps 60 gives 0/20 tail corruption = timing-sensitive; pools DEC->VPP 23, VPP->ENC 20
 
 ### Pending Todos
 
@@ -107,6 +114,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T08:01:56.656Z
-Stopped at: Phase 02.1 context gathered
-Resume file: .planning/phases/02.1-source-level-fix-qsvencc-surface-sync-lifetime/02.1-CONTEXT.md
+Last session: 2026-10-01T10:54:10.670Z
+Stopped at: Completed 02.1-01-PLAN.md
+Resume file: None

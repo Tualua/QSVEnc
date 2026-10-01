@@ -81,7 +81,7 @@ Plans:
 **Goal:** Find and fix, in qsvencc source (8.31 base), why concurrent `--avhw` + P010 + B-pyramid sessions emit a corrupted frame while ffmpeg `av1_qsv` with the same driver/kernel/trigger triad stays clean — by diffing how each manages surface synchronization and surface lifetime, then validating candidate patches with the unmodified Phase-1 harness.
 **Requirements**: FIX-01
 **Depends on:** Phase 2; upstream 8.31 re-check (`.planning/research/UPSTREAM-8.31-RECHECK.md`)
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 **Why now (decided 2026-10-01):** 8.31 still reproduces (923 7/20, 1129 6/20, control 0/20). ffmpeg immunity on the SAME kernel contradicts the "root cause is kernel-only" conclusion — the driver can isolate sessions, so qsvencc's usage pattern differs. The earlier "source-patch line exhausted" verdict covered only surface attributes (`rt_format`, `UsageHint`) and `--async-depth 1`; synchronization and surface lifetime were never examined. Phase 3 stays in the roadmap (needs operator action on the host).
 
@@ -97,7 +97,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 02.1-01-PLAN.md — stock positive control through the candidate pipeline (tracer); FIX-01 registration; D-01/D-04 on record; X1 pool dump, X2/X3 shim screens
+- [x] 02.1-01-PLAN.md — stock positive control through the candidate pipeline (tracer); FIX-01 registration; D-01/D-04 on record; X1 pool dump, X2/X3 shim screens
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 02.1-02-PLAN.md — diag/surf-trace build: in-memory surface trace + default-off coarse toggles; bit-exactness; X4 D-03 reproduce gate + D-vs-S trace analysis
