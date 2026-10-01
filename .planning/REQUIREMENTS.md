@@ -23,6 +23,10 @@ Requirements for this investigation milestone. Each maps to a roadmap phase.
 - [ ] **DIAG-04**: Test the `i915`→`Xe` driver switch (`force_probe` on PCI `56a5`) — gated on first confirming the same low-power AV1 encode path is still active (dmesg GuC/HuC lines + iHD logging) before any "clean" result is trusted, so a silently disabled HW-encode path is not mistaken for a fix.
 - [ ] **DIAG-05**: Every lever changes exactly one variable per reboot cycle with its own before/after control pair; results are attributed only under single-variable isolation.
 
+### Source-Level Fix
+
+- [ ] **FIX-01**: Each examined surface-sync/lifetime/allocator hypothesis is confirmed or refuted by harness measurement; any claimed fix passes ~60 zero-failure 3-way iterations on 923/1129 with control 0/N and preserved single-session bit-exactness.
+
 ### Workaround Recommendation
 
 - [ ] **WORK-01**: Measure workaround A (`--avsw`, SW-decode + HW-encode) for cleanliness and throughput in this environment under concurrency, to a validation-grade sample (~60 zero-failure runs, rule-of-three) before any "clean" claim.
@@ -73,6 +77,7 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 | REPRO-05 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (summary.txt: 923/299 9/20 45.0% CI [0.258,0.658], 1129/299 8/20 40.0%, 928/96 0/20, N_requested=20/N_actual=20, detection-N vs validation-N statement) |
 | DIAG-01 | Phase 3 | Pending |
 | DIAG-02 | Phase 2 | Complete — `02-EVIDENCE.md` (detection-N=20: 0/20 corrupt all three scenes, paired av1_qsv control clean 0/20, D-02 triad PARTIAL (reorder UNSUPPORTED, P010/hw_decode ACTIVE), explicit SC#2 interpretation "immunity NOT proven", triangulated against 01-EVIDENCE.md qsvencc baseline, qsvencc cross-session-swap mechanism note stays OPEN) |
+| FIX-01 | Phase 02.1 | Pending |
 | DIAG-03 | Phase 3 | Pending |
 | DIAG-04 | Phase 3 | Pending |
 | DIAG-05 | Phase 3 | Pending |
@@ -85,10 +90,10 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 | DONE-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 17 total
-- Mapped to phases: 17 (roadmap created)
+- v1 requirements: 18 total
+- Mapped to phases: 18 (roadmap created)
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-23*
-*Last updated: 2026-07-23 after roadmap creation (traceability mapped)*
+*Last updated: 2026-10-01 — FIX-01 added for Phase 02.1*

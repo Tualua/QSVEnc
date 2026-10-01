@@ -79,7 +79,7 @@ Plans:
 
 **Mode:** mvp
 **Goal:** Find and fix, in qsvencc source (8.31 base), why concurrent `--avhw` + P010 + B-pyramid sessions emit a corrupted frame while ffmpeg `av1_qsv` with the same driver/kernel/trigger triad stays clean — by diffing how each manages surface synchronization and surface lifetime, then validating candidate patches with the unmodified Phase-1 harness.
-**Requirements**: TBD (fix-validation requirement to be added at discuss/plan time)
+**Requirements**: FIX-01
 **Depends on:** Phase 2; upstream 8.31 re-check (`.planning/research/UPSTREAM-8.31-RECHECK.md`)
 **Plans:** 4 plans
 
