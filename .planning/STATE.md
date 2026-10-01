@@ -2,16 +2,17 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: "02.1"
+current_phase_name: Source-Level Fix — qsvencc Surface Sync & Lifetime
 status: ready_to_plan
 stopped_at: Phase 02.1 context gathered
-last_updated: "2026-10-01T08:01:56.878Z"
+last_updated: "2026-10-01T09:51:06.293Z"
 last_activity: 2026-10-01
 last_activity_desc: upstream 8.31 re-check (bug reproduces), phase 02.1 inserted
-state_head: 19c58b7f00445a50cd9b8aa4a1630807e3400e77
+state_head: cd9d50922f4aaa324052bc485aa34adda79ac3b5
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 7
+  total_plans: 11
   completed_plans: 7
 milestone_name: milestone
 ---
@@ -27,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 ## Current Position
 
-Phase: 02.1
+Phase: 02.1 (Source-Level Fix — qsvencc Surface Sync & Lifetime) — READY TO EXECUTE
 Plan: Not started
 Status: Ready to discuss
 Last activity: 2026-10-01 -- upstream 8.31 re-check (bug reproduces), phase 02.1 inserted

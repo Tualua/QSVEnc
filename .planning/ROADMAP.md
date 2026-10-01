@@ -96,9 +96,16 @@ Plans:
   3. Working tree: build in worktree `/workspaces/qsvenc-831` (tag 8.31); harness copy in `scratch/repro-831/` (Phase-1 baseline in `scratch/repro/` untouched); run on main tree, worktree isolation OFF for `scratch/` outputs.
 
 Plans:
+**Wave 1**
 - [ ] 02.1-01-PLAN.md — stock positive control through the candidate pipeline (tracer); FIX-01 registration; D-01/D-04 on record; X1 pool dump, X2/X3 shim screens
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 02.1-02-PLAN.md — diag/surf-trace build: in-memory surface trace + default-off coarse toggles; bit-exactness; X4 D-03 reproduce gate + D-vs-S trace analysis
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 02.1-03-PLAN.md — lever screens X5/X6/X7a/X7b (+ conditional D-06 allocator); per-hypothesis verdicts; operator path decision
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 02.1-04-PLAN.md — fix commit + 60-iteration validation + md5 + bit-exactness + fps + format-patch (or negative close); upstream draft update only
 
 ### Phase 3: Host-Side Levers — Firmware & Xe Migration
