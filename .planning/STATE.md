@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: "02.1"
 current_phase_name: Source-Level Fix — qsvencc Surface Sync & Lifetime
 status: executing
-stopped_at: Completed 02.1-01-PLAN.md
-last_updated: "2026-10-01T10:54:10.873Z"
+stopped_at: Completed 02.1-02-PLAN.md
+last_updated: "2026-10-01T11:20:52.906Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 02.1 execution started
-state_head: 1cbfe31bb040b52b8ac823038c5eef329e7d183c
+state_head: a0403a1991d2ad1bfe420dd1cc0f4ee60358873c
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 ## Current Position
 
 Phase: 02.1 (Source-Level Fix — qsvencc Surface Sync & Lifetime) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-10-01 — Phase 02.1 execution started
 
@@ -67,6 +67,7 @@ Progress: [██████████] 100%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 02.1 P01 | 52 min | 3 tasks | 3 files |
+| Phase 02.1 P02 | 26 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Interpretation branch matched the REAL PARTIAL-TRIAD/0-20-clean data: immunity NOT proven (not the full-triad-clean or corrupt branch)
 - [Phase 02.1]: 02.1-01: instrument validated via T0b-stock fallback; md5 oracle (d01_md5) mandatory on every candidate because cand_screen is fail-open for a mid-stream drift mode
 - [Phase 02.1]: 02.1-01: X2 refutes M6 (tune/scenario inert); X3 --max-procfps 60 gives 0/20 tail corruption = timing-sensitive; pools DEC->VPP 23, VPP->ENC 20
+- [Phase 02.1]: 02.1-02: D-03 gate FAIL with tracing on (6/40 < 7, control 0/20) - traces not trusted; 02.1-03 uses D-05 coarse toggles of diag-T2 with tracing OFF after a fresh toggles-off positive control
+- [Phase 02.1]: 02.1-02: diag-T2 shows mid-stream drift mode 6/60 md5-D cells; md5 oracle mandatory on every batch
 
 ### Pending Todos
 
@@ -114,6 +117,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T10:54:10.670Z
-Stopped at: Completed 02.1-01-PLAN.md
+Last session: 2026-10-01T11:20:52.551Z
+Stopped at: Completed 02.1-02-PLAN.md
 Resume file: None
