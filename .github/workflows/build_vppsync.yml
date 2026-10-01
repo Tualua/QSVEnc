@@ -47,7 +47,7 @@ jobs:
           set -eu
           VER=$(./scripts/get-version.sh)
           sed -i "s/^PACKAGE_VERSION=.*/PACKAGE_VERSION=${VER}+${PKG_SUFFIX}/" build_deb.sh
-          sed -i "s/^Release:.*/Release:    1.${PKG_SUFFIX}/
+          sed -i "s/^Release:.*/Release:    1.${PKG_SUFFIX}/" build_pkg/template.spec
           grep -n "^PACKAGE_VERSION=" build_deb.sh
           grep -n "^Release:" build_pkg/template.spec
 
@@ -56,23 +56,27 @@ jobs:
 
       - name: Build
         run: |
-          set -eu                                                                                                                             mkdir -p output
-          docker run -dit --rm -v ${{ github.workspace }}:/work -v ${{ github.workspace }}/output:/output \                                     -u "$(id -u):$(id -g)" --workdir /work --name bu{ matrix.dockerimg }}
-          docker exec build_pkg bash -lc '                                                                                                      VMAFPKG="${{ env.VMAF_PREFIX }}/lib/pkgconfig"
-            FFPKG="${{ env.FFMPEG_PREFIX }}/lib/pkgconfig:${{ env.FFMPEG_PREFIX }}/lib/x86_64-linux-gnu/pkgconfig"                              export PKG_CONFIG_PATH="${VMAFPKG}:${FFPKG}${PKGATH}}"
-            meson setup ./build . --buildtype=release -Db_lto=true -Dlibass_static=true -Denable_vmaf=enabled -Dlibvmaf_static=true -Denable_libvship=disabled -Dcpp_args="['\''-I/work/AviSynth'-I/work/vapoursynth/include'\'']"
+          set -eu
+          mkdir -p output
+          docker run -dit --rm -v ${{ github.workspace }}:/work -v ${{ github.workspace }}/output:/output \
+            -u "$(id -u):$(id -g)" --workdir /work --name build_pkg ${BASE_IMAGE_REPO}:${{ matrix.dockerimg }}
+          docker exec build_pkg bash -lc '
+            VMAFPKG="${{ env.VMAF_PREFIX }}/lib/pkgconfig"
+            FFPKG="${{ env.FFMPEG_PREFIX }}/lib/pkgconfig:${{ env.FFMPEG_PREFIX }}/lib/x86_64-linux-gnu/pkgconfig"
+            export PKG_CONFIG_PATH="${VMAFPKG}:${FFPKG}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+            meson setup ./build . --buildtype=release -Db_lto=true -Dlibass_static=true -Denable_vmaf=enabled -Dlibvmaf_static=true -Denable_libvship=disabled -Dcpp_args="['\''-I/work/AviSynthPlus/avs_core/include'\'','\''-I/work/vapoursynth/include'\'']"
           '
-          docker exec build_pkg bash -lc "meson compile -C .
+          docker exec build_pkg bash -lc "meson compile -C ./build -j$(nproc)"
           docker exec build_pkg bash -lc 'ldd ./build/qsvencc'
           docker exec build_pkg ./build/qsvencc --version
           docker exec build_pkg ./check_options.py -exe ./build/qsvencc
-          docker exec build_pkg ./build/qsvencc --check-cmd-
+          docker exec build_pkg ./build/qsvencc --check-cmd-parse
           docker exec build_pkg cp ./build/qsvencc ./qsvencc
-          docker exec build_pkg ./build_${{ matrix.pkgtype }
+          docker exec build_pkg ./build_${{ matrix.pkgtype }}.sh
           docker exec build_pkg bash -lc "cp -v ./*.${{ matrix.pkgtype }} /output/"
           docker stop build_pkg || true
           cd output
-          for f in *.${{ matrix.pkgtype }}; do mv -v "$f" "$rix.pkgtype }}\$/_${{ matrix.dockerimg }}.${{ matrix.pkgtype}}/")"; done
+          for f in *.${{ matrix.pkgtype }}; do mv -v "$f" "$(echo "$f" | sed "s/\.${{ matrix.pkgtype }}\$/_${{ matrix.dockerimg }}.${{ matrix.pkgtype }}/")"; done
           ls -l
 
       - name: Upload artifact
@@ -103,26 +107,26 @@ jobs:
         run: |
           set -eu
           cat > notes.md <<'EOF'
-          **Unofficial build — not from rigaya.** QSVEncC 8. plus one patch:
+          **Unofficial build — not from rigaya.** QSVEncC 8.31 (rigaya/QSVEnc tag `8.31`) plus one patch:
           wait for the VPP output syncpoint before `EncodeFrameAsync` (rigaya/QSVEnc#316).
 
           It works around a silent single-frame corruption when several QSVEncC sessions share one Intel GPU
-          (AV1 10-bit, `--avhw`, P010 VPP stage, B-pyramid; r tests on an Arc A380
+          (AV1 10-bit, `--avhw`, P010 VPP stage, B-pyramid; see rigaya/QSVEnc#308). In our tests on an Arc A380
           (Linux, iHD 26.2.2): 3 concurrent sessions, 0 corrupt frames in 60 iterations with the patch vs. about
-          one third of hot-scene encodes without it; single- stock 8.31; no measurable
+          one third of hot-scene encodes without it; single-session output bit-exact with stock 8.31; no measurable
           throughput cost.
 
           Built by GitHub Actions with rigaya's public build images (same steps as upstream `build_packages.yml`):
-          - `*_ubuntu2004.deb` — Ubuntu 20.04 / 22.04 / 24.0 Needs Intel media
+          - `*_ubuntu2004.deb` — Ubuntu 20.04 / 22.04 / 24.04 (ffmpeg linked statically). Needs Intel media
             driver and oneVPL GPU runtime (`intel-media-va-driver-non-free`, `libmfx-gen1.2` or `libmfxgen1`).
           - `*_fedora41.rpm` — Fedora 41+.
 
-          The package version is `8.31+vppsync1` (deb) / `8.fficial 8.32 replaces it.
+          The package version is `8.31+vppsync1` (deb) / `8.31-1.vppsync1` (rpm), so an official 8.32 replaces it.
           Verify downloads with `SHA256SUMS`.
           EOF
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/* --clobbe
+            gh release upload "$RELEASE_TAG" dist/* --clobber
           else
-            gh release create "$RELEASE_TAG" dist/* --target
+            gh release create "$RELEASE_TAG" dist/* --target "$GITHUB_SHA" --prerelease \
               --title "QSVEncC 8.31 + VPP sync fix (unofficial, $RELEASE_TAG)" --notes-file notes.md
           fi
