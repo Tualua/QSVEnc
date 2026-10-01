@@ -1,0 +1,41 @@
+From 38e344c7a73099b50a36dacf5d3f876516c244d5 Mon Sep 17 00:00:00 2001
+From: Tualua <dsp@mvdnet.org>
+Date: Thu, 1 Oct 2026 12:53:25 +0000
+Subject: [PATCH] Wait for the VPP output syncpoint before encoding to avoid
+ corrupted frames under concurrent sessions
+
+When several QSVEncC sessions share one GPU, the last frames before a
+forced IDR (the final mini-GOP anchor, B-pyramid, P010 VPP stage, VA video
+memory) could be encoded from an input surface that had not yet been fully
+written by the VPP, producing corrupted frames at the end of a chunk.
+
+Wait for the syncpoint attached to the incoming frame in
+PipelineTaskMFXEncode::sendFrame() before calling EncodeFrameAsync(),
+which serializes the VPP -> encoder hand-off the same way the ffmpeg
+QSV path does. The flush call passes no frame and is unaffected.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Czm66bqFqddEKb1Cw1trpH
+---
+ QSVPipeline/qsv_pipeline_ctrl.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/QSVPipeline/qsv_pipeline_ctrl.h b/QSVPipeline/qsv_pipeline_ctrl.h
+index e8c13414..c7f004f3 100644
+--- a/QSVPipeline/qsv_pipeline_ctrl.h
++++ b/QSVPipeline/qsv_pipeline_ctrl.h
+@@ -2608,6 +2608,11 @@ public:
+             PrintMes(RGY_LOG_ERROR, _T("Invalid frame type.\n"));
+             return RGY_ERR_UNSUPPORTED;
+         }
++        // wait for the producer's syncpoint (VPP) before the encoder reads the surface;
++        // otherwise the encoder can read a stale input surface when several sessions share the GPU
++        if (frame) { // frame is nullptr on the flush call
++            frame->waitsync();
++        }
+ 
+         auto bsOut = m_bitStreamOut.get([enc = m_encode, log = m_log](RGYBitstream *bs) {
+             mfxVideoParam par = { 0 };
+-- 
+2.43.0
+
