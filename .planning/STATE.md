@@ -5,16 +5,15 @@ current_phase: 3
 current_phase_name: Host-Side Levers — Firmware & Xe Migration
 status: planning
 stopped_at: Phase 02.1 complete, ready to plan Phase 3
-last_updated: "2026-10-01T14:36:09.479Z"
+last_updated: "2026-10-01T15:53:20.284Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 02.1 complete, transitioned to Phase 3
-state_head: b1fce3087004bc7e0614ebfcc70903dd64bbff86
+state_head: a4642b72032cf2e840714e227ac72a0d6c5a99c6
 progress:
-  total_phases: 6
+  total_phases: 5
   completed_phases: 3
   total_plans: 11
   completed_plans: 11
-  percent: 40
 milestone_name: milestone
 ---
 
@@ -112,6 +111,11 @@ None yet.
 - Phase 3 (host-side levers) may be entirely blocked in this environment — container may lack host reboot/root/firmware access. Must be reported as "recommended but blocked," not treated as a failure.
 - Xe/HuC support status for DG2/Alchemist is dated (~Sept 2025 in research); must be re-verified live via dmesg before Phase 3 is finalized.
 - Every "clean/fixed" claim (Phases 3-4) requires ~60 zero-failure runs (rule-of-three); detection-only samples (~15-20) are insufficient for those claims.
+
+### Roadmap Evolution
+
+- Phase 4 removed: former Phase 4 (enpipe workaround + content gate) removed: enpipe not in this repo, bug fixed in qsvencc (2.1); Phase 5 renumbered to 4 with an 'until fixed upstream' section
+- Phase 3 edited: reduced to DIAG-01; DIAG-03..05 (GuC/HuC, Xe) deferred to v2
 
 ## Deferred Items
 

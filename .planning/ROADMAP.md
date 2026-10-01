@@ -16,9 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Harness, Control & Environment Fingerprinting** - Build and calibrate the reproduction harness, mandatory ffmpeg `av1_qsv` immune control, and environment fingerprint; confirm baseline corruption signature in this environment. (completed 2026-07-23)
 - [x] **Phase 2: In-Container Triangulation — av1_vaapi** - Test the pure VA-API path as a cheap, unblocked data point that reshapes interpretation of later host-side and workaround findings. (completed 2026-07-23)
 - [x] **Phase 2.1: Source-Level Fix — qsvencc Surface Sync & Lifetime** (INSERTED) - Diff qsvencc vs ffmpeg surface sync/lifetime under concurrency and validate source patches with the Phase-1 harness on an 8.31 build. (completed 2026-10-01)
-- [ ] **Phase 3: Host-Side Levers — Firmware & Xe Migration** - Exhaust the untried in-place kernel/driver levers, one variable per reboot, honestly reporting blocked levers as recommended-but-blocked.
-- [ ] **Phase 4: Workaround Recommendation & Defense-in-Depth Gate** - Deliver a measured, correctness-first `enpipe` workaround recommendation and a root-cause-independent content-verification gate design.
-- [ ] **Phase 5: Synthesis — Definition-of-Done Report** - Produce the final handoff report synthesizing reproduction, host-side, and recommendation findings.
+- [ ] **Phase 3: Host-Side Levers — Firmware & Xe Migration** - Record what host-side changes are possible from this environment (DIAG-01); the GuC/HuC and Xe experiments are deferred to v2 (2026-10-01, after the source-level fix in 2.1).
+- [ ] **Phase 4: Synthesis — Definition-of-Done Report** - Produce the final report: reproduction, the source-level fix and its upstream status, host-side capability, and what to do until the fix is upstream.
 
 ## Phase Details
 
@@ -34,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. The 3-way concurrent `qsvencc` harness runs on scenes 923/928/1129 with the exact seek/trim from the handoff, writing all outputs only to an isolated writable workdir, never to `/data`.
   3. A bit-clean single-session reference frame (scene 923, offset 299) exists, and the harness classifies a test frame as corrupt via external-ffmpeg PSNR against that reference (`<30 dB` = corrupt; known signature ≈15.74 dB).
   4. Every qsvencc measurement in this phase has a paired ffmpeg `av1_qsv` immune-control run (HW h264_qsv decode + P010 + GopRefDist6 pyramid) reported alongside it, confirmed clean (0/N).
-  5. Baseline corruption frequency and PSNR signature are reported over a detection-sized sample (~15-20 iterations), with detection-N explicitly distinguished from the larger validation-N required later for any "clean/fixed" claim.
+  5. Baseline corruption frequency and PSNR signature are reported over a detection-sized sample (~14-20 iterations), with detection-N explicitly distinguished from the larger validation-N required later for any "clean/fixed" claim.
 
 **Plans**: 2 plans (1 execute + 1 gap-closure)
 Plans:
@@ -111,57 +110,41 @@ Plans:
 ### Phase 3: Host-Side Levers — Firmware & Xe Migration
 
 **Mode:** mvp
-**Goal**: Exhaust the untried in-place host-side kernel/driver levers (GuC/HuC firmware update, `i915`→`Xe` migration), one variable per reboot cycle, with blocked levers honestly reported rather than silently skipped.
-**Depends on**: Phase 1 (harness reused unmodified); Phase 2 result informs interpretation
-**Requirements**: DIAG-01, DIAG-03, DIAG-04, DIAG-05
+**Goal**: Empirically record which host-side changes are possible from this environment (kernel cmdline/modprobe, firmware, reboot, privilege level), so the deferred host-side experiments can be scoped honestly.
+**Depends on**: Phase 1
+**Requirements**: DIAG-01
+**Scope change (2026-10-01):** Phase 2.1 delivered an application-level fix (rigaya/QSVEnc#316). The GuC/HuC firmware and `i915`→`Xe` experiments (DIAG-03/04/05) only remain useful to test the "root cause below the API" hypothesis for a report to Intel; they need host reboots and operator action and are deferred to v2.
 **Success Criteria** (what must be TRUE):
 
-  1. Host-side change capability in this environment is empirically determined and recorded (kernel cmdline/modprobe access, firmware update access, reboot access, privilege level) — reported honestly as available or blocked before any lever is attempted.
-  2. If available: GuC/HuC firmware update is tested in isolation, with its own before/after paired control-plus-harness re-run, and its corruption-rate change against the Phase 1 baseline is recorded.
-  3. If available: the `i915`→`Xe` driver switch is tested in isolation, gated on confirming the same low-power AV1 encode path is still active (dmesg GuC/HuC lines + iHD/`--check-features` logging) before any "clean" result under Xe is trusted; corruption-rate change against baseline is recorded.
-  4. Every lever's experiment log shows exactly one changed variable versus the immediately prior measured state — no two host-side changes applied in the same reboot cycle.
-  5. Any lever unavailable in this environment is explicitly reported as "recommended but blocked — requires host-owner action," never silently omitted from the findings.
+  1. Host-side change capability in this environment is empirically determined and recorded (kernel cmdline/modprobe access, firmware update access, reboot access, privilege level) — each reported honestly as available or blocked.
+  2. The deferred levers (GuC/HuC update, `i915`→`Xe`) are listed with what they would test and what they need from the host owner, so they can be picked up later without re-analysis.
 
 **Plans**: TBD
 
-### Phase 4: Workaround Recommendation & Defense-in-Depth Gate
+### Phase 4: Synthesis — Definition-of-Done Report
 
 **Mode:** mvp
-**Goal**: Deliver a correctness-first, measured workaround recommendation for `enpipe`, plus a root-cause-independent per-frame content-verification gate design — both ship regardless of whether Phase 3 finds a host-side fix.
-**Depends on**: Phase 1 (metric engine reused); informed by, but not blocked on, Phase 2/3 outcomes
-**Requirements**: WORK-01, WORK-02, WORK-03, WORK-04, GUARD-01, GUARD-02
-**Success Criteria** (what must be TRUE):
-
-  1. Workaround A (`--avsw`, SW-decode + HW-encode) is measured for cleanliness and throughput in this environment to a validation-grade sample (~60 zero-failure runs, rule-of-three) before any "clean" claim is made.
-  2. Workaround B (`--jobs 1` serialization) throughput is measured fresh in this environment as the simplest correctness-guaranteed comparison baseline.
-  3. Workaround C (migration to ffmpeg `av1_qsv`) DV/HDR passthrough risk is characterized in writing (not prototyped), timeboxed as risk-assessment only.
-  4. A written recommendation exists naming the correctness-first workaround for `enpipe`, backed by measured throughput numbers per option and an explicit residual-corruption-rate threshold for "production ready."
-  5. A per-frame (worst-percentile, not mean/aggregate) content-verification gate design exists — VMAF/PSNR of the final joined `movie.obu` vs source — with its `enpipe` integration contract specified (where it runs, pass/fail threshold, VMAF locale/CSV field-16-vs-17 parsing gotchas) as a design deliverable.
-
-**Plans**: TBD
-
-### Phase 5: Synthesis — Definition-of-Done Report
-
-**Mode:** mvp
-**Goal**: Produce the final Definition-of-Done report synthesizing reproduction, host-side, and recommendation findings into an actionable handoff.
-**Depends on**: Phases 1-4
+**Goal**: Produce the final Definition-of-Done report: reproduction result, the source-level fix and its upstream status, host-side capability, open questions, and guidance for qsvencc users until the fix is in an official release.
+**Depends on**: Phases 1, 2, 2.1, 3
 **Requirements**: DONE-01
+**Scope change (2026-10-01):** the former Phase 4 (workaround recommendation and content-verification gate for `enpipe`) was removed — `enpipe` is not part of this repository and the fix now lives in qsvencc itself. A short "until fixed upstream" section replaces it.
 **Success Criteria** (what must be TRUE):
 
-  1. The Definition-of-Done report (handoff §10 format) is written, covering: reproduction result in this environment, host-side conclusion (which levers were tried or reported blocked, with results), and the `enpipe` workaround recommendation with its content-gate spec reference.
-  2. The debug-history status entry is updated — kept at `root_cause_found`, or explicitly raised to `fixed` only if a host-side fix was confirmed at validation-grade sample size (~60+ zero-failure runs) in Phase 3.
+  1. The report covers: reproduction in this environment; mechanism (stale input surface of the same session at the last mini-GOP anchor before the IDR; behaves as a timing window); the fix (rigaya/QSVEnc#316, release `8.31-vppsync1`) with its validation numbers and limits (statistical bound, root cause below the API not proven); host-side capability (Phase 3) and the deferred levers; open questions (mid-stream drift observations, other configurations such as #308).
+  2. An "until fixed upstream" section tells qsvencc users what to do: use the patched build, or fall back to a configuration that avoids the trigger (e.g. `--avsw` or one encode per GPU), with each option marked as measured or not measured in this milestone.
+  3. The debug-history status entry is updated to reflect an application-level workaround with upstream PR pending — not a proven root-cause fix.
 
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 2.1 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
 | 2. In-Container Triangulation — av1_vaapi | 5/5 | Complete   | 2026-07-23 |
+| 2.1. Source-Level Fix — qsvencc Surface Sync & Lifetime | 4/4 | Complete   | 2026-10-01 |
 | 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
-| 4. Workaround Recommendation & Defense-in-Depth Gate | 0/TBD | Not started | - |
-| 5. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |
+| 4. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |
