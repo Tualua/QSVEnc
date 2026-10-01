@@ -25,7 +25,7 @@ Requirements for this investigation milestone. Each maps to a roadmap phase.
 
 ### Source-Level Fix
 
-- [ ] **FIX-01**: Each examined surface-sync/lifetime/allocator hypothesis is confirmed or refuted by harness measurement; any claimed fix passes ~60 zero-failure 3-way iterations on 923/1129 with control 0/N and preserved single-session bit-exactness.
+- [x] **FIX-01**: Each examined surface-sync/lifetime/allocator hypothesis is confirmed or refuted by harness measurement; any claimed fix passes ~60 zero-failure 3-way iterations on 923/1129 with control 0/N and preserved single-session bit-exactness. (Complete — fix fix/vpp-enc-sync (consumer-side waitsync before EncodeFrameAsync, label timing-workaround) validated 0/60 on 923 and 1129, control 0/60, md5 180/180 S, bit-exact 6/6; residual per-iteration rate <= 5 % (rule of three). See 02.1-EVIDENCE.md.)
 
 ### Workaround Recommendation
 
@@ -77,7 +77,7 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 | REPRO-05 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (summary.txt: 923/299 9/20 45.0% CI [0.258,0.658], 1129/299 8/20 40.0%, 928/96 0/20, N_requested=20/N_actual=20, detection-N vs validation-N statement) |
 | DIAG-01 | Phase 3 | Pending |
 | DIAG-02 | Phase 2 | Complete — `02-EVIDENCE.md` (detection-N=20: 0/20 corrupt all three scenes, paired av1_qsv control clean 0/20, D-02 triad PARTIAL (reorder UNSUPPORTED, P010/hw_decode ACTIVE), explicit SC#2 interpretation "immunity NOT proven", triangulated against 01-EVIDENCE.md qsvencc baseline, qsvencc cross-session-swap mechanism note stays OPEN) |
-| FIX-01 | Phase 02.1 | Pending |
+| FIX-01 | Phase 02.1 | Complete — 02.1-EVIDENCE.md (FIX-v60: 0/60 + md5 180/180 S + bit-exact 6/6; patches/0001-*.patch) |
 | DIAG-03 | Phase 3 | Pending |
 | DIAG-04 | Phase 3 | Pending |
 | DIAG-05 | Phase 3 | Pending |
