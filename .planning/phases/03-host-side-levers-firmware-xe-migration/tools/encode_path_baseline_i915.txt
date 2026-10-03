@@ -1,0 +1,57 @@
+[user] vainfo: vainfo: Driver version: Intel iHD driver for Intel(R) Gen Graphics - 26.2.2 ()
+[user] vainfo_av1: VAProfileAV1Profile0 : VAEntrypointVLD
+[user] vainfo_av1: VAProfileAV1Profile0 : VAEntrypointEncSliceLP
+[user] qsvencc_bin_sha256: f4282c494a1fe0565e568b7c35285d416a64b36265ffa93d5ffa362ec3c3cbdb
+[user] qsvencc_version: QSVEncC (x64) 8.31 (r4604) by rigaya, Oct  1 2026 07:28:26 (gcc 13.3.0/Linux)
+[user] qsvencc_av1_ff: Codec: AV1 FF
+[user] qsvencc_av1_ff: CBR VBR AVBR QVBR CQP LA LAHRD ICQ LAICQ VCM
+[user] qsvencc_av1_ff: RC mode o o x x o x x o x x
+[user] qsvencc_av1_ff: 10bit depth o o x x o x x o x x
+[user] qsvencc_av1_ff: Hyper Mode x x x x x x x x x x
+[user] qsvencc_av1_ff: Interlace x x x x x x x x x x
+[user] qsvencc_av1_ff: VUI info o o x x o x x o x x
+[user] qsvencc_av1_ff: Trellis x x x x x x x x x x
+[user] qsvencc_av1_ff: BFrame/GopRef o o x x o x x o x x
+[user] qsvencc_av1_ff: Adaptive_I o o x x o x x o x x
+[user] qsvencc_av1_ff: Adaptive_B o o x x o x x o x x
+[user] qsvencc_av1_ff: WeightP x x x x x x x x x x
+[user] qsvencc_av1_ff: WeightB x x x x x x x x x x
+[user] qsvencc_av1_ff: FadeDetect x x x x x x x x x x
+[user] qsvencc_av1_ff: B_Pyramid o o x x o x x o x x
+[user] qsvencc_av1_ff: +ManyBframes o o x x o x x o x x
+[user] qsvencc_av1_ff: PyramQPOffset x x x x o x x x x x
+[user] qsvencc_av1_ff: TuneQuality o o x x o x x o x x
+[user] qsvencc_av1_ff: ScenarioInfo o o x x o x x o x x
+[user] qsvencc_av1_ff: MBBRC o o x x x x x o x x
+[user] qsvencc_av1_ff: ExtBRC o o x x x x x o x x
+[user] qsvencc_av1_ff: AdaptiveRef x x x x x x x x x x
+[user] qsvencc_av1_ff: AdaptiveLTR o o x x o x x o x x
+[user] qsvencc_av1_ff: AdaptiveCQM o o x x o x x o x x
+[user] qsvencc_av1_ff: LA Quality x x x x x x x x x x
+[user] qsvencc_av1_ff: QP Min/Max o o x x x x x o x x
+[user] qsvencc_av1_ff: IntraRefresh x x x x x x x x x x
+[user] qsvencc_av1_ff: No Deblock x x x x x x x x x x
+[user] qsvencc_av1_ff: No GPB x x x x x x x x x x
+[user] qsvencc_av1_ff: Windowed BRC x x x x x x x x x x
+[user] qsvencc_av1_ff: PerMBQP(CQP) x x x x x x x x x x
+[user] qsvencc_av1_ff: DirectBiasAdj x x x x x x x x x x
+[user] qsvencc_av1_ff: MVCostScaling x x x x x x x x x x
+[user] qsvencc_av1_ff: SAO x x x x x x x x x x
+[user] qsvencc_av1_ff: Max CTU Size x x x x x x x x x x
+[user] qsvencc_av1_ff: TSkip x x x x x x x x x x
+[user] qsvencc_av1_ff: AI Enc Ctrl x x x x x x x x x x
+[user] qsvencc_av1_ff: RepartCheck x x x x x x x x x x
+[user] qsvencc_av1_ff: COP o o x x o x x o x x
+[user] qsvencc_av1_ff: COP2 o o x x o x x o x x
+[user] qsvencc_av1_ff: COP3 o o x x o x x o x x
+[user] qsvencc_av1_ff: HEVC_PRM x x x x x x x x x x
+[user] qsvencc_av1_ff: COP_VP8 x x x x x x x x x x
+[user] qsvencc_av1_ff: VP9_PRM x x x x x x x x x x
+[user] qsvencc_av1_ff: AV1BITSTREAM o o x x o x x o x x
+[user] qsvencc_av1_ff: AV1RESOLUTION o o x x o x x o x x
+[user] qsvencc_av1_ff: AV1TILE o o x x o x x o x x
+[user] qsvencc_av1_ff: VIDEO_SIGNAL o o x x o x x o x x
+[user] qsvencc_av1_ff: CHROMALOC x x x x x x x x x x
+[user] qsvencc_av1_ff: TUNE_ENC_QUAL o o x x o x x o x x
+[user] qsvencc_av1_ff: HYPER_MODE x x x x x x x x x x
+[user] qsvencc_av1_ff: AI_ENC_CTRL x x x x x x x x x x
