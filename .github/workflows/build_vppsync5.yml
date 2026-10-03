@@ -1,24 +1,25 @@
-name: Build QSVEncC 8.32 + metric/flush/ssim fixes (unofficial)
+name: Build QSVEncC 8.32 + metric/flush/ssim/seek fixes (unofficial)
 
-# Unofficial build of rigaya/QSVEnc 8.32 (tag 8.32, includes 45003f1 for #308) with three patches:
+# Unofficial build of rigaya/QSVEnc 8.32 (tag 8.32, includes 45003f1 for #308) with four patches:
 #  - sync the VPP output before the video quality metric (--ssim/--psnr) reads it
 #  - do not silently drop frames when a task fails during pipeline flush
 #  - fix SSIM over 1.0 when the plane size is not a multiple of 4
+#  - fix --seek starting one GOP late on mpegts/mp4 input
 # Same build steps and the same public build images as upstream build_packages.yml.
 
 on:
   push:
     branches:
-      - vppsync4-832
+      - vppsync5-832
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  PACKAGE_VERSION: 8.32+vppsync4
-  RPM_RELEASE: 1.vppsync4
-  RELEASE_TAG: 8.32-vppsync4
+  PACKAGE_VERSION: 8.32+vppsync5
+  RPM_RELEASE: 1.vppsync5
+  RELEASE_TAG: 8.32-vppsync5
   BASE_IMAGE_REPO: ghcr.io/rigaya/qsvenc-build
   FFMPEG_PREFIX: /opt/build_scripts/ffmpeg_dll/build_dll/x64/build
   VMAF_PREFIX: /opt/build_scripts/ffmpeg_dll/x64/build
@@ -111,7 +112,7 @@ jobs:
           set -eu
           cat > notes.md <<'EOF'
           **Unofficial build — not from rigaya.** QSVEncC 8.32 (rigaya/QSVEnc tag `8.32`, which already
-          includes rigaya's fix for #308) plus three patches that are proposed upstream (#319, #320 and the SSIM fix):
+          includes rigaya's fix for #308) plus four patches that are proposed upstream (#319, #320, #322 and the --seek fix):
 
           1. **Sync the VPP output before the video quality metric reads it.** With `--ssim`/`--psnr` on Linux (VA),
              the metric read the VPP output surface before VPP had finished. This aborted most encodes
@@ -121,6 +122,10 @@ jobs:
              last frames produced a truncated output (e.g. 236 of 240 frames) with exit code 0.
           3. **Fix SSIM over 1.0 when the plane size is not a multiple of 4.** Chroma SSIM was reported above 1.0 ("nan" dB)
              when the frame height (or width) is not a multiple of 8, e.g. 320x180 or cropped 1920x804.
+          4. **Fix `--seek` starting one GOP late on MPEG-TS / M2TS / MP4 input.** The encode silently started from the
+             keyframe after the requested one (and failed with "No video packets found!" in the last GOP); `--trim`
+             after `--seek` could also be shortened. `--seek` now starts at the first keyframe at or after the target
+             for every container, as it already did for MKV.
 
           Tested on Arc A380 (Linux, iHD 26.2.2): `--ssim --psnr` runs complete with values identical to ffmpeg's
           psnr/ssim filters; outputs without metrics are bit-identical to stock; 3 concurrent sessions clean.
@@ -129,7 +134,7 @@ jobs:
             media driver and oneVPL GPU runtime (`intel-media-va-driver-non-free`, `libmfx-gen1.2` or `libmfxgen1`).
           - `*_fedora41.rpm` — Fedora 41+.
 
-          Package version `8.32+vppsync4` (deb) / `8.32-1.vppsync4` (rpm), so it is newer than the official 8.32 package and
+          Package version `8.32+vppsync5` (deb) / `8.32-1.vppsync5` (rpm), so it is newer than the official 8.32 package and
           an official 8.33 replaces it. Verify downloads with `SHA256SUMS`.
           EOF
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
