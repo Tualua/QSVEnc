@@ -1,0 +1,140 @@
+name: Build QSVEncC 8.32 + metric/flush/ssim fixes (unofficial)
+
+# Unofficial build of rigaya/QSVEnc 8.32 (tag 8.32, includes 45003f1 for #308) with three patches:
+#  - sync the VPP output before the video quality metric (--ssim/--psnr) reads it
+#  - do not silently drop frames when a task fails during pipeline flush
+#  - fix SSIM over 1.0 when the plane size is not a multiple of 4
+# Same build steps and the same public build images as upstream build_packages.yml.
+
+on:
+  push:
+    branches:
+      - vppsync4-832
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PACKAGE_VERSION: 8.32+vppsync4
+  RPM_RELEASE: 1.vppsync4
+  RELEASE_TAG: 8.32-vppsync4
+  BASE_IMAGE_REPO: ghcr.io/rigaya/qsvenc-build
+  FFMPEG_PREFIX: /opt/build_scripts/ffmpeg_dll/build_dll/x64/build
+  VMAF_PREFIX: /opt/build_scripts/ffmpeg_dll/x64/build
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerimg: ubuntu2004
+            pkgtype: deb
+          - dockerimg: fedora41
+            pkgtype: rpm
+    name: Build ${{ matrix.dockerimg }} ${{ matrix.pkgtype }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Show patches
+        run: git log --oneline -6
+
+      - name: Mark rpm release (CI-only edit)
+        run: |
+          set -eu
+          sed -i "s/^Release:.*/Release:    ${RPM_RELEASE}/" build_pkg/template.spec
+          grep -n "^Release:" build_pkg/template.spec
+
+      - name: Pull base image
+        run: docker pull ${BASE_IMAGE_REPO}:${{ matrix.dockerimg }}
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          docker run -dit --rm -v ${{ github.workspace }}:/work -v ${{ github.workspace }}/output:/output \
+            -e "PACKAGE_VERSION=${PACKAGE_VERSION}" \
+            -u "$(id -u):$(id -g)" --workdir /work --name build_pkg ${BASE_IMAGE_REPO}:${{ matrix.dockerimg }}
+          docker exec build_pkg bash -lc '
+            set -e
+            VMAFPKG="${{ env.VMAF_PREFIX }}/lib/pkgconfig"
+            FFPKG="${{ env.FFMPEG_PREFIX }}/lib/pkgconfig:${{ env.FFMPEG_PREFIX }}/lib/x86_64-linux-gnu/pkgconfig"
+            export PKG_CONFIG_PATH="${VMAFPKG}:${FFPKG}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+            meson setup ./build . --buildtype=release -Db_lto=true -Dlibass_static=true -Denable_vmaf=enabled -Dlibvmaf_static=true -Denable_libvship=disabled -Dcpp_args="['\''-I/work/AviSynthPlus/avs_core/include'\'','\''-I/work/vapoursynth/include'\'']"
+          '
+          docker exec build_pkg bash -lc "meson compile -C ./build -j$(nproc)"
+          docker exec build_pkg meson install -C ./build --destdir /tmp/qsvencc-install
+          docker exec build_pkg cp /tmp/qsvencc-install/usr/local/bin/qsvencc ./qsvencc
+          docker exec build_pkg bash -lc 'ldd -r ./qsvencc'
+          docker exec build_pkg ./qsvencc --version
+          docker exec build_pkg ./check_options.py -exe ./qsvencc
+          docker exec build_pkg ./qsvencc --check-cmd-parse
+          docker exec build_pkg ./build_${{ matrix.pkgtype }}.sh
+          docker exec build_pkg bash -lc "cp -v ./*.${{ matrix.pkgtype }} /output/"
+          docker stop build_pkg || true
+          cd output
+          for f in *.${{ matrix.pkgtype }}; do mv -v "$f" "$(echo "$f" | sed "s/\.${{ matrix.pkgtype }}\$/_${{ matrix.dockerimg }}.${{ matrix.pkgtype }}/")"; done
+          ls -l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qsvencc_${{ matrix.dockerimg }}_${{ matrix.pkgtype }}
+          path: output/*.${{ matrix.pkgtype }}
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * | tee SHA256SUMS
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          cat > notes.md <<'EOF'
+          **Unofficial build — not from rigaya.** QSVEncC 8.32 (rigaya/QSVEnc tag `8.32`, which already
+          includes rigaya's fix for #308) plus three patches that are proposed upstream (#319, #320 and the SSIM fix):
+
+          1. **Sync the VPP output before the video quality metric reads it.** With `--ssim`/`--psnr` on Linux (VA),
+             the metric read the VPP output surface before VPP had finished. This aborted most encodes
+             ("Failed to copy input surface before video metric", "No OBU found in packet", 0 frames) and gave wrong
+             metric values when it did not abort (e.g. 24.7 dB instead of 49.6 dB for 10-bit output with B-frames).
+          2. **Do not silently drop frames when a task fails during pipeline flush.** Previously such a failure in the
+             last frames produced a truncated output (e.g. 236 of 240 frames) with exit code 0.
+          3. **Fix SSIM over 1.0 when the plane size is not a multiple of 4.** Chroma SSIM was reported above 1.0 ("nan" dB)
+             when the frame height (or width) is not a multiple of 8, e.g. 320x180 or cropped 1920x804.
+
+          Tested on Arc A380 (Linux, iHD 26.2.2): `--ssim --psnr` runs complete with values identical to ffmpeg's
+          psnr/ssim filters; outputs without metrics are bit-identical to stock; 3 concurrent sessions clean.
+
+          - `*_ubuntu2004.deb` — Ubuntu 20.04 / 22.04 / 24.04, Debian 11+ (ffmpeg linked statically). Needs the Intel
+            media driver and oneVPL GPU runtime (`intel-media-va-driver-non-free`, `libmfx-gen1.2` or `libmfxgen1`).
+          - `*_fedora41.rpm` — Fedora 41+.
+
+          Package version `8.32+vppsync4` (deb) / `8.32-1.vppsync4` (rpm), so it is newer than the official 8.32 package and
+          an official 8.33 replaces it. Verify downloads with `SHA256SUMS`.
+          EOF
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --target "$GITHUB_SHA" --prerelease \
+              --title "QSVEncC 8.32 + metric/flush/ssim fixes (unofficial, $RELEASE_TAG)" --notes-file notes.md
+          fi
