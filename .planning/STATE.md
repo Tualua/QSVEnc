@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 3
 current_phase_name: Host-Side Levers — Firmware & Xe Migration
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-10-03T01:50:38.066Z"
-last_activity: 2026-10-01
-last_activity_desc: Phase 02.1 complete, transitioned to Phase 3
-state_head: 3192d83a1f783742fbb05c1b34cdf55e54118397
+stopped_at: Phase 3 paused at 03-01 Task 2 checkpoint (operator host probe on NAS) — deferred by operator 2026-10-03 to investigate qsvencc --psnr/--ssim frame loss
+last_updated: "2026-10-03T03:08:01.520Z"
+last_activity: 2026-10-03
+last_activity_desc: Phase 3 execution started
+state_head: b7c94b84c54910d2e12431c8291df0c1cbb2137b
 progress:
   total_phases: 5
   completed_phases: 3
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Correctness is non-negotiable — no encoded frame may ever silently contain content from another concurrent session.
-**Current focus:** Phase 02.1 — Source-Level Fix — qsvencc Surface Sync & Lifetime
+**Current focus:** Phase 3 — Host-Side Levers — Firmware & Xe Migration
 
 ## Current Position
 
-Phase: 3 (Host-Side Levers — Firmware & Xe Migration) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-01 — Phase 02.1 complete, transitioned to Phase 3
+Phase: 3 (Host-Side Levers — Firmware & Xe Migration) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 3
+Last activity: 2026-10-03 — Phase 3 execution started
 
 Progress: [████░░░░░░] 40%
 
@@ -127,6 +127,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-03T01:11:36.668Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-host-side-levers-firmware-xe-migration/03-CONTEXT.md
+Last session: 2026-10-03T03:08:01.279Z
+Stopped at: Phase 3 paused at 03-01 Task 2 checkpoint (operator host probe on NAS) — deferred by operator 2026-10-03 to investigate qsvencc --psnr/--ssim frame loss
+Resume file: .planning/phases/03-host-side-levers-firmware-xe-migration/03-01-PLAN.md
