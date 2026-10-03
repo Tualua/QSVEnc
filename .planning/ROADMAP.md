@@ -119,7 +119,10 @@ Plans:
   1. Host-side change capability in this environment is empirically determined and recorded (kernel cmdline/modprobe access, firmware update access, reboot access, privilege level) — each reported honestly as available or blocked.
   2. The deferred levers (GuC/HuC update, `i915`→`Xe`) are listed with what they would test and what they need from the host owner, so they can be picked up later without re-analysis.
 
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+**Wave 1**
+- [ ] 03-01-PLAN.md — read-only capability probe run in the container (tracer) and on the NAS host (operator checkpoint); DIAG-01 capability matrix, GuC/HuC/DMC + firmware baseline and i915 encode-path baseline in 03-EVIDENCE.md; deferred-lever runbook 03-RUNBOOK.md (L1 GuC/HuC firmware, L2 i915 -> Xe)
 
 ### Phase 4: Synthesis — Definition-of-Done Report
 
