@@ -603,7 +603,7 @@ chk_modprobe_d_gpu() {
     [ -d "$d" ] || continue
     for f in "$d"/*.conf; do
       [ -f "$f" ] || continue
-      grep -HnE '^[[:space:]]*(options|blacklist|install|softdep)[[:space:]].*(^|[^[:alnum:]_])(i915|xe)([^[:alnum:]_]|$)' "$f" 2>/dev/null
+      grep -HnE '^[[:space:]]*(options|blacklist|install|softdep)[[:space:]]+(.*[[:space:]])?(i915|xe)([[:space:]]|$)' "$f" 2>/dev/null
     done
   done
 }
