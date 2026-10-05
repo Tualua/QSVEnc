@@ -1340,7 +1340,13 @@ int run(int argc, TCHAR *argv[]) {
     }
 
     auto sts = pPipeline->Init(&Params);
-    if (sts < RGY_ERR_NONE) return sts;
+    if (sts < RGY_ERR_NONE) {
+        if (Params.av1.chroma_dc_delta_q != 0 || Params.av1.chroma_ac_delta_q != 0) {
+            pPipeline->PrintMes(RGY_LOG_ERROR, _T("--av1-chroma-delta-q is experimental and requires a vpl-gpu-rt runtime patched to accept MFX_EXTBUFF_AV1_AUXDATA.\n")
+                _T("With the stock runtime the encoder fails to initialize (invalid video parameters).\n"));
+        }
+        return sts;
+    }
 
     pPipeline->SetAbortFlagPointer(&g_signal_abort);
     set_signal_handler();
