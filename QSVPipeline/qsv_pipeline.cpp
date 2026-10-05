@@ -1602,6 +1602,18 @@ RGY_ERR CQSVPipeline::InitMfxEncodeParams(sInputParams *pInParams, std::vector<s
                 m_encParams.addExtParams(&m_encParams.av1TilePrm);
             }
         }
+        if (pInParams->av1.chroma_dc_delta_q != 0 || pInParams->av1.chroma_ac_delta_q != 0) {
+            // EXPERIMENTAL: vpl-gpu-rtのprivate APIの拡張バッファで、U/Vの量子化デルタを指定する
+            // 標準のruntimeはこのバッファを受け付けないので、パッチを当てたruntimeが必要
+            INIT_MFX_EXT_BUFFER(m_encParams.av1AuxDataPrm, MFX_EXTBUFF_AV1_AUXDATA_QSVENC);
+            m_encParams.av1AuxDataPrm.QP.UDcDeltaQ = (mfxI8)pInParams->av1.chroma_dc_delta_q;
+            m_encParams.av1AuxDataPrm.QP.VDcDeltaQ = (mfxI8)pInParams->av1.chroma_dc_delta_q;
+            m_encParams.av1AuxDataPrm.QP.UAcDeltaQ = (mfxI8)pInParams->av1.chroma_ac_delta_q;
+            m_encParams.av1AuxDataPrm.QP.VAcDeltaQ = (mfxI8)pInParams->av1.chroma_ac_delta_q;
+            m_encParams.addExtParams(&m_encParams.av1AuxDataPrm);
+            PrintMes(RGY_LOG_DEBUG, _T("InitMfxEncParams: AV1 chroma delta-q dc %d, ac %d (experimental).\n"),
+                pInParams->av1.chroma_dc_delta_q, pInParams->av1.chroma_ac_delta_q);
+        }
     }
     if (pInParams->hyperMode != MFX_HYPERMODE_OFF
         && (availableFeaures & ENC_FEATURE_EXT_HYPER_MODE)) {
@@ -7003,6 +7015,9 @@ RGY_ERR CQSVPipeline::CheckCurrentVideoParam(TCHAR *str, mfxU32 bufSize) {
         //PRINT_INFO(    _T("Idr Interval    %d\n"), outFrameInfo->videoPrm.mfx.IdrInterval);
         PRINT_INFO(_T("%s"), _T("Max GOP Length "));
         PRINT_INT_AUTO(_T("%d frames\n"), outFrameInfo->videoPrm.mfx.GopPicSize);
+        if (m_encParams.av1AuxDataPrm.Header.BufferId == MFX_EXTBUFF_AV1_AUXDATA_QSVENC) {
+            PRINT_INFO(_T("AV1 Chroma dQ  dc %d, ac %d (experimental)\n"), m_encParams.av1AuxDataPrm.QP.UDcDeltaQ, m_encParams.av1AuxDataPrm.QP.UAcDeltaQ);
+        }
         if (check_lib_version(m_mfxVer, MFX_LIB_VERSION_1_8)) {
             //PRINT_INFO(    _T("GOP Structure           "));
             //bool adaptiveIOn = (MFX_CODINGOPTION_ON == outFrameInfo->cop2.AdaptiveI);

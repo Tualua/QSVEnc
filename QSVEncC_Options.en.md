@@ -155,6 +155,7 @@
   - [--no-hevc-gpb](#--no-hevc-gpb)
   - [--tile-row \<int\>](#--tile-row-int)
   - [--tile-col \<int\>](#--tile-col-int)
+  - [--av1-chroma-delta-q \<int\> or dc=\<int\>,ac=\<int\>](#--av1-chroma-delta-q-int-or-dcintacint)
   - [--ssim](#--ssim)
   - [--psnr](#--psnr)
   - [--vmaf [\<param1\>=\<value1\>][,\<param2\>=\<value2\>]...](#--vmaf-param1value1param2value2)
@@ -1155,6 +1156,17 @@ Number of tile rows. [AV1]
 
 ### --tile-col &lt;int&gt;
 Number of tile columns. [AV1]
+
+### --av1-chroma-delta-q &lt;int&gt; or dc=&lt;int&gt;,ac=&lt;int&gt;
+Quantizer delta for the U and V planes (DC and AC coefficients), -63..63. A negative value quantizes chroma finer than luma, which preserves the color of small, low-saturation details at a small bitrate cost. A single value sets both DC and AC. [AV1]
+
+**EXPERIMENTAL:** the stock oneVPL GPU runtime (vpl-gpu-rt) does not accept this setting and the encoder fails to initialize. It requires a runtime patched to accept the `MFX_EXTBUFF_AV1_AUXDATA` extension buffer.
+
+- Example
+  ```
+  --av1-chroma-delta-q -24
+  --av1-chroma-delta-q dc=-8,ac=-32
+  ```
 
 ### --ssim
 Calculate ssim of the encoded video.
