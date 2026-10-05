@@ -50,6 +50,82 @@ RGY_DISABLE_WARNING_STR("-Wunused-result")
 RGY_DISABLE_WARNING_POP
 #pragma warning(pop)
 #include "qsv_pipeline.h"
+// EXPERIMENT: copy of private vpl-gpu-rt api/vpl/private/mfxav1.h mfxExtAV1AuxData (26.2.2)
+typedef struct {
+    mfxExtBuffer Header;
+
+    mfxU16  StillPictureMode;         /* tri-state option */
+    mfxU16  UseAnnexB;                /* tri-state option */
+    mfxU16  PackOBUFrame;             /* tri-state option */
+    mfxU16  InsertTemporalDelimiter;  /* tri-state option */
+
+    mfxU16  EnableCdef;               /* tri-state option */
+    mfxU16  EnableRestoration;        /* tri-state option */
+
+    mfxU16  EnableLoopFilter;         /* tri-state option */
+    mfxU8   LoopFilterSharpness;      /* 0..8, 0 = default, map to bitstream: [1..8] => [0..7] */
+
+    mfxU16  EnableSuperres;           /* tri-state option */
+    mfxU8   SuperresScaleDenominator; /* 9..16, 0 = default */
+
+    mfxU8   SegmentationMode;         /* see enum AV1SegmentMode*/
+    mfxU8   InterpFilter;             /* see enum AV1InterpolationMode */
+
+    mfxU16  DisableCdfUpdate;         /* tri-state option */
+    mfxU16  DisableFrameEndUpdateCdf; /* tri-state option */
+
+    mfxU16  UniformTileSpacing;       /* tri-state option */
+    mfxU8   ContextUpdateTileIdPlus1; /* Minus 1 specifies context_update_tile_id */
+
+    mfxU16  SwitchInterval;           /* interval, 0 - disabled */
+
+    mfxU16  NumTilesPerTileGroup[256];
+    mfxU16  TileWidthInSB[128];
+    mfxU16  TileHeightInSB[128];
+
+    struct {
+        mfxU8  CdefDampingMinus3;   /* 0..3 */
+        mfxU8  CdefBits;            /* 0..3 */
+        mfxU8  CdefYStrengths[8];   /* 0..63 */
+        mfxU8  CdefUVStrengths[8];  /* 0..63 */
+        mfxU8  reserved[14];
+    } Cdef;
+
+    struct {
+        mfxU8  LFLevelYVert;        /* 0..63 */
+        mfxU8  LFLevelYHorz;        /* 0..63 */
+        mfxU8  LFLevelU;            /* 0..63 */
+        mfxU8  LFLevelV;            /* 0..63 */
+        mfxU8  ModeRefDeltaEnabled; /* 0, 1 */
+        mfxU8  ModeRefDeltaUpdate;  /* 0, 1 */
+        mfxI8  RefDeltas[8];        /* -63..63 */
+        mfxI8  ModeDeltas[2];       /* -63..63 */
+        mfxU8  reserved[16];
+    } LoopFilter;
+
+    struct {
+        mfxI8  YDcDeltaQ;           /* -63..63 */
+        mfxI8  UDcDeltaQ;           /* -63..63 */
+        mfxI8  VDcDeltaQ;           /* -63..63 */
+        mfxI8  UAcDeltaQ;           /* -63..63 */
+        mfxI8  VAcDeltaQ;           /* -63..63 */
+        mfxU8  MinBaseQIndex;
+        mfxU8  MaxBaseQIndex;
+        mfxU8  reserved[25];
+    } QP;
+
+    mfxU16 ErrorResilientMode;          /* tri-state option */
+    mfxU16 EnableOrderHint;             /* tri-state option */
+    mfxU8  OrderHintBits;               /* 0..8, 0 = default */
+    mfxU16 DisplayFormatSwizzle;        /* tri-state option */
+    mfxU16 Palette;                     /* tri-state option */
+    mfxU16 IBC;                         /* tri-state option */
+    mfxU16 SegmentTemporalUpdate;       /* tri-state option */
+
+    mfxU16 EnableRefFrameMvs;           /* tri-state option */
+    mfxU16 ReducedTxSetUsed;            /* tri-state  */
+    mfxU8  reserved[30];
+} mfxExtAV1AuxDataExp;
 #include "qsv_pipeline_ctrl.h"
 #include "qsv_session.h"
 #include "qsv_query.h"
@@ -1601,6 +1677,23 @@ RGY_ERR CQSVPipeline::InitMfxEncodeParams(sInputParams *pInParams, std::vector<s
 
                 m_encParams.addExtParams(&m_encParams.av1TilePrm);
             }
+        }
+        // EXPERIMENT (not for upstream): private vpl-gpu-rt buffer MFX_EXTBUFF_AV1_AUXDATA ('1AUX') with delta-q
+        // QSV_EXP_AV1_DELTAQ=ydc,udc,uac,vdc,vac ; needs a runtime that accepts this buffer
+        if (const char *dq = getenv("QSV_EXP_AV1_DELTAQ"); dq && *dq) {
+            static mfxExtAV1AuxDataExp auxExp;
+            memset(&auxExp, 0, sizeof(auxExp));
+            auxExp.Header.BufferId = MFX_MAKEFOURCC('1', 'A', 'U', 'X');
+            auxExp.Header.BufferSz = sizeof(auxExp);
+            int v[5] = { 0, 0, 0, 0, 0 };
+            sscanf(dq, "%d,%d,%d,%d,%d", &v[0], &v[1], &v[2], &v[3], &v[4]);
+            auxExp.QP.YDcDeltaQ = (mfxI8)v[0];
+            auxExp.QP.UDcDeltaQ = (mfxI8)v[1];
+            auxExp.QP.UAcDeltaQ = (mfxI8)v[2];
+            auxExp.QP.VDcDeltaQ = (mfxI8)v[3];
+            auxExp.QP.VAcDeltaQ = (mfxI8)v[4];
+            PrintMes(RGY_LOG_INFO, _T("EXPERIMENT: AV1 AUXDATA delta-q y_dc %d, u_dc %d, u_ac %d, v_dc %d, v_ac %d (struct size %d).\n"), v[0], v[1], v[2], v[3], v[4], (int)sizeof(auxExp));
+            m_encParams.addExtParams((mfxExtBuffer *)&auxExp);
         }
     }
     if (pInParams->hyperMode != MFX_HYPERMODE_OFF
