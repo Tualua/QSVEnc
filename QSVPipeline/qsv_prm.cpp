@@ -129,7 +129,9 @@ sVppParams::sVppParams() :
 
 QSVAV1Params::QSVAV1Params() :
     tile_row(0),
-    tile_col(0) {
+    tile_col(0),
+    chroma_dc_delta_q(0),
+    chroma_ac_delta_q(0) {
 
 }
 

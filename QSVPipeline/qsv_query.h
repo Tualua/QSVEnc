@@ -29,6 +29,7 @@
 #define _QSV_QUERY_H_
 
 #include "rgy_tchar.h"
+#include "qsv_av1_auxdata.h"
 #include <emmintrin.h>
 #include <vector>
 #include <array>
@@ -557,6 +558,7 @@ struct QSVVideoParam {
     mfxExtAV1BitstreamParam av1BitstreamPrm;
     mfxExtAV1ResolutionParam av1ResolutionPrm;
     mfxExtAV1TileParam av1TilePrm;
+    mfxExtAV1AuxDataQSVEnc av1AuxDataPrm;
     mfxExtHyperModeParam hyperModePrm;
     mfxExtTuneEncodeQuality tuneEncQualityPrm;
     mfxExtAIEncCtrl aiEncCtrlPrm;

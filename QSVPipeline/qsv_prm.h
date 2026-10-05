@@ -271,6 +271,8 @@ struct sVppParams {
 struct QSVAV1Params {
     int tile_row;
     int tile_col;
+    int chroma_dc_delta_q; // u/v_dc_delta_q (EXPERIMENTAL, requires a runtime accepting MFX_EXTBUFF_AV1_AUXDATA)
+    int chroma_ac_delta_q; // u/v_ac_delta_q (EXPERIMENTAL)
 
     QSVAV1Params();
 };
