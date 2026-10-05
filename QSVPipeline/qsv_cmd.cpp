@@ -426,6 +426,10 @@ tstring encoder_help() {
         _T("   --(no-)hevc-gpb              [hevc] enable(disable) GPB\n")
         _T("   --tile-row <int>             [av1] number of tile rows\n")
         _T("   --tile-col <int>             [av1] number of tile columns\n")
+        _T("   --av1-chroma-delta-q <int> or dc=<int>,ac=<int>\n")
+        _T("                                [av1] U/V quantizer delta, -63..63 (negative: finer chroma)\n")
+        _T("                                 EXPERIMENTAL: requires a vpl-gpu-rt patched to accept\n")
+        _T("                                 MFX_EXTBUFF_AV1_AUXDATA, the stock runtime fails to init.\n")
         //_T("   --sharpness <int>            [vp8] set sharpness level for vp8 enc\n")
         _T("\n"),
         QSV_DEFAULT_ASYNC_DEPTH,
@@ -1843,6 +1847,40 @@ int ParseOneOption(const TCHAR *option_name, const TCHAR* strInput[], int& i, in
         }
         return 0;
     }
+    if (0 == _tcscmp(option_name, _T("av1-chroma-delta-q"))) {
+        i++;
+        // <int> (U/V DC/ACすべて) または dc=<int>,ac=<int>
+        int dc = 0, ac = 0;
+        try {
+            if (_tcschr(strInput[i], _T('='))) {
+                for (const auto& param : split(strInput[i], _T(","))) {
+                    const auto pos = param.find_first_of(_T("="));
+                    if (pos == std::string::npos) throw std::invalid_argument("no value");
+                    const auto name = tolowercase(param.substr(0, pos));
+                    const auto value = std::stoi(param.substr(pos + 1));
+                    if (name == _T("dc")) {
+                        dc = value;
+                    } else if (name == _T("ac")) {
+                        ac = value;
+                    } else {
+                        throw std::invalid_argument("unknown name");
+                    }
+                }
+            } else {
+                dc = ac = std::stoi(strInput[i]);
+            }
+        } catch (...) {
+            print_cmd_error_invalid_value(option_name, strInput[i], _T("<int> or dc=<int>,ac=<int>"));
+            return 1;
+        }
+        if (dc < -63 || 63 < dc || ac < -63 || 63 < ac) {
+            print_cmd_error_invalid_value(option_name, strInput[i], _T("value must be in -63..63"));
+            return 1;
+        }
+        pParams->av1.chroma_dc_delta_q = dc;
+        pParams->av1.chroma_ac_delta_q = ac;
+        return 0;
+    }
     if (0 == _tcscmp(option_name, _T("qpmin")) || 0 == _tcscmp(option_name, _T("qp-min"))) {
         i++;
         int ret = pParams->qpMin.parse(strInput[i]);
@@ -2812,6 +2850,9 @@ tstring gen_cmd(const sInputParams *pParams, bool save_disabled_prm, RGYDisableG
     if (save_disabled_prm || pParams->codec == RGY_CODEC_AV1) {
         OPT_NUM(_T("--tile-row"), av1.tile_row);
         OPT_NUM(_T("--tile-col"), av1.tile_col);
+        if (pParams->av1.chroma_dc_delta_q != encPrmDefault.av1.chroma_dc_delta_q || pParams->av1.chroma_ac_delta_q != encPrmDefault.av1.chroma_ac_delta_q) {
+            cmd << _T(" --av1-chroma-delta-q dc=") << pParams->av1.chroma_dc_delta_q << _T(",ac=") << pParams->av1.chroma_ac_delta_q;
+        }
     }
     if (save_disabled_prm || pParams->codec == RGY_CODEC_H264) {
         OPT_LST(_T("--trellis"), nTrellis, list_avc_trellis_for_options);
