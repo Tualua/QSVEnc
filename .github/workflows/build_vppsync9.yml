@@ -1,6 +1,6 @@
-name: Build QSVEncC 8.32 + metric/flush/ssim/seek/seekto/open-GOP trim/exit-wait fixes (unofficial)
+name: Build QSVEncC 8.32 + metric/flush/ssim/seek/seekto/open-GOP trim/exit-wait fixes + experimental AV1 chroma delta-q (unofficial)
 
-# Unofficial build of rigaya/QSVEnc 8.32 (tag 8.32, includes 45003f1 for #308) with seven patches:
+# Unofficial build of rigaya/QSVEnc 8.32 (tag 8.32, includes 45003f1 for #308) with seven patches and one experimental option:
 #  - sync the VPP output before the video quality metric (--ssim/--psnr) reads it
 #  - do not silently drop frames when a task fails during pipeline flush
 #  - fix SSIM over 1.0 when the plane size is not a multiple of 4
@@ -8,21 +8,22 @@ name: Build QSVEncC 8.32 + metric/flush/ssim/seek/seekto/open-GOP trim/exit-wait
 #  - fix --seekto ending early on mpegts input and not cutting audio
 #  - fix --trim after --seek shifted by the open-GOP leading frames
 #  - do not wait up to 5 s for the --avoid-idle-clock dummy load thread on exit
+#  - EXPERIMENTAL: --av1-chroma-delta-q (needs the patched vpl-gpu-rt attached to the release)
 # Same build steps and the same public build images as upstream build_packages.yml.
 
 on:
   push:
     branches:
-      - vppsync8-832
+      - vppsync9-832
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  PACKAGE_VERSION: 8.32+vppsync8
-  RPM_RELEASE: 1.vppsync8
-  RELEASE_TAG: 8.32-vppsync8
+  PACKAGE_VERSION: 8.32+vppsync9
+  RPM_RELEASE: 1.vppsync9
+  RELEASE_TAG: 8.32-vppsync9
   BASE_IMAGE_REPO: ghcr.io/rigaya/qsvenc-build
   FFMPEG_PREFIX: /opt/build_scripts/ffmpeg_dll/build_dll/x64/build
   VMAF_PREFIX: /opt/build_scripts/ffmpeg_dll/x64/build
@@ -139,6 +140,12 @@ jobs:
              finished within 5 s waited for the dummy load thread's 5 s start delay before exiting. Short chunks
              (e.g. 79 frames of 4K) now take ~1.7 s instead of ~5.6 s. Output is bit-identical.
 
+          **Experimental: `--av1-chroma-delta-q <int>` or `dc=<int>,ac=<int>`** (AV1 only). Sets the U/V quantizer delta
+          (-63..63, negative = finer chroma). Small low-saturation colored details lose much less color at a small bitrate
+          cost (4K HDR10 test scene, `--icq 23`: -32 gives +15 % bitrate and the chroma quality of `--icq 18`, which costs
+          +474 %). It needs the **patched oneVPL GPU runtime** from this release (`vpl-gpu-rt-*-av1auxdata.tar.gz`); with
+          the stock runtime the encoder fails to initialize and qsvencc prints a hint. Without the option nothing changes.
+
           Tested on Arc A380 (Linux, iHD 26.2.2): `--ssim --psnr` runs complete with values identical to ffmpeg's
           psnr/ssim filters; outputs without metrics are bit-identical to stock; 3 concurrent sessions clean.
 
@@ -146,7 +153,7 @@ jobs:
             media driver and oneVPL GPU runtime (`intel-media-va-driver-non-free`, `libmfx-gen1.2` or `libmfxgen1`).
           - `*_fedora41.rpm` — Fedora 41+.
 
-          Package version `8.32+vppsync8` (deb) / `8.32-1.vppsync8` (rpm), so it is newer than the official 8.32 package and
+          Package version `8.32+vppsync9` (deb) / `8.32-1.vppsync9` (rpm), so it is newer than the official 8.32 package and
           an official 8.33 replaces it. Verify downloads with `SHA256SUMS`.
           EOF
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
