@@ -155,6 +155,7 @@
   - [--no-hevc-gpb](#--no-hevc-gpb)
   - [--tile-row \<int\>](#--tile-row-int)
   - [--tile-col \<int\>](#--tile-col-int)
+  - [--av1-chroma-delta-q \<int\> or dc=\<int\>,ac=\<int\>](#--av1-chroma-delta-q-int-or-dcintacint)
   - [--ssim](#--ssim)
   - [--psnr](#--psnr)
   - [--vmaf [\<param1\>=\<value1\>][,\<param2\>=\<value2\>]...](#--vmaf-param1value1param2value2)
@@ -1181,6 +1182,17 @@ HEVCエンコードでPフレームとしてGPBの代わりに通常のPフレ�
 
 ### --tile-col &lt;int&gt;
 エンコード時の分割タイルの列数。 [AV1]
+
+### --av1-chroma-delta-q &lt;int&gt; or dc=&lt;int&gt;,ac=&lt;int&gt;
+U/V平面の量子化デルタ (DC/AC係数)、-63..63。負の値を指定すると色差を輝度より細かく量子化し、小さく彩度の低い部分の色を少ないビットレート増で保持できる。値を1つだけ指定するとDC/ACの両方に適用する。 [AV1]
+
+**実験的機能:** 標準のoneVPL GPUランタイム (vpl-gpu-rt) はこの設定を受け付けず、エンコーダの初期化に失敗する。`MFX_EXTBUFF_AV1_AUXDATA` 拡張バッファを受け付けるようにパッチを当てたランタイムが必要。
+
+- 使用例
+  ```
+  --av1-chroma-delta-q -24
+  --av1-chroma-delta-q dc=-8,ac=-32
+  ```
 
 ### --ssim
 エンコード結果のSSIMを計算。
