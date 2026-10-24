@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Harness, Control & Environment Fingerprinting** - Build and calibrate the reproduction harness, mandatory ffmpeg `av1_qsv` immune control, and environment fingerprint; confirm baseline corruption signature in this environment. (completed 2026-07-23)
 - [x] **Phase 2: In-Container Triangulation — av1_vaapi** - Test the pure VA-API path as a cheap, unblocked data point that reshapes interpretation of later host-side and workaround findings. (completed 2026-07-23)
 - [x] **Phase 2.1: Source-Level Fix — qsvencc Surface Sync & Lifetime** (INSERTED) - Diff qsvencc vs ffmpeg surface sync/lifetime under concurrency and validate source patches with the Phase-1 harness on an 8.31 build. (completed 2026-10-01)
-- [ ] **Phase 3: Host-Side Levers — Firmware & Xe Migration** - Record what host-side changes are possible from this environment (DIAG-01); the GuC/HuC and Xe experiments are deferred to v2 (2026-10-01, after the source-level fix in 2.1).
+- [x] **Phase 3: Host-Side Levers — Firmware & Xe Migration** - Record what host-side changes are possible from this environment (DIAG-01); the GuC/HuC and Xe experiments are deferred to v2 (2026-10-01, after the source-level fix in 2.1). (completed 2026-10-24)
 - [ ] **Phase 4: Synthesis — Definition-of-Done Report** - Produce the final report: reproduction, the source-level fix and its upstream status, host-side capability, and what to do until the fix is upstream.
 
 ## Phase Details
@@ -122,7 +122,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 **Wave 1**
-- [ ] 03-01-PLAN.md — read-only capability probe run in the container (tracer) and on the NAS host (operator checkpoint); DIAG-01 capability matrix, GuC/HuC/DMC + firmware baseline and i915 encode-path baseline in 03-EVIDENCE.md; deferred-lever runbook 03-RUNBOOK.md (L1 GuC/HuC firmware, L2 i915 -> Xe)
+- [x] 03-01-PLAN.md — read-only capability probe run in the container (tracer) and on the NAS host (operator checkpoint); DIAG-01 capability matrix, GuC/HuC/DMC + firmware baseline and i915 encode-path baseline in 03-EVIDENCE.md; deferred-lever runbook 03-RUNBOOK.md (L1 GuC/HuC firmware, L2 i915 -> Xe)
 
 ### Phase 4: Synthesis — Definition-of-Done Report
 
@@ -149,5 +149,5 @@ Phases execute in numeric order: 1 → 2 → 2.1 → 3 → 4
 | 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
 | 2. In-Container Triangulation — av1_vaapi | 5/5 | Complete   | 2026-07-23 |
 | 2.1. Source-Level Fix — qsvencc Surface Sync & Lifetime | 4/4 | Complete   | 2026-10-01 |
-| 3. Host-Side Levers — Firmware & Xe Migration | 0/TBD | Not started | - |
+| 3. Host-Side Levers — Firmware & Xe Migration | 1/1 | Complete   | 2026-10-24 |
 | 4. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |

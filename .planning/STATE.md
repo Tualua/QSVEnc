@@ -1,20 +1,19 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.0
+milestone_name: milestone
 current_phase: 3
 current_phase_name: Host-Side Levers — Firmware & Xe Migration
-status: executing
-stopped_at: Phase 3 paused at 03-01 Task 2 checkpoint (operator host probe on NAS) — deferred by operator 2026-10-03 to investigate qsvencc --psnr/--ssim frame loss
-last_updated: "2026-10-03T03:08:01.520Z"
-last_activity: 2026-10-03
-last_activity_desc: Phase 3 execution started
-state_head: b7c94b84c54910d2e12431c8291df0c1cbb2137b
+status: ready_for_verification
+stopped_at: Completed 03-01-PLAN.md (Phase 3 complete, ready for verification)
+last_updated: "2026-10-24T17:07:07.621Z"
+last_activity: 2026-10-24 — 03-01 completed
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
-milestone_name: milestone
+  completed_plans: 12
+  percent: 80
 ---
 
 # Project State
@@ -30,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-23)
 
 Phase: 3 (Host-Side Levers — Firmware & Xe Migration) — EXECUTING
 Plan: 1 of 1
-Status: Executing Phase 3
-Last activity: 2026-10-03 — Phase 3 execution started
+Status: Phase 3 complete — ready for verification
+Last activity: 2026-10-24 — 03-01 completed (host probe, EVIDENCE, RUNBOOK)
 
-Progress: [████░░░░░░] 40%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -71,6 +70,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02.1 P02 | 26 min | 3 tasks | 5 files |
 | Phase 02.1 P03 | multi-session | 4 tasks | 1 files |
 | Phase 02.1 P04 | continuation ~1.5h | 4 tasks | 6 files |
+| Phase 03 P01 | checkpoint-split | 4 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -101,6 +101,8 @@ Recent decisions affecting current work:
 - [Phase 02.1]: 02.1-02: diag-T2 shows mid-stream drift mode 6/60 md5-D cells; md5 oracle mandatory on every batch
 - [Phase 02.1]: X9s_sham_sync_0of20_supports_timing_final_path_fix-path_X5_timing-workaround
 - [Phase 02.1]: Upstream PR on 15cd6879 prepared as draft for discussion (pr/vpp-enc-sync 362bde63); upstream output identical to 8.31 references; single-session cost re-measured ~0 to -3 percent (earlier -9..-19 superseded); not pushed
+- [Phase 03]: 03-01: GPU replaced (A380 on i915 -> Arc Pro B50 on xe) between probes; levers L1/L2 marked not applicable to current hardware, kept in runbook for an A380 reinstall
+- [Phase 03]: 03-01: Operator policy: no restart of the NAS; CAP-REBOOT blocked on host (operator-declared); change abilities operator-declared (not tested)
 
 ### Pending Todos
 
@@ -127,6 +129,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-03T03:08:01.279Z
-Stopped at: Phase 3 paused at 03-01 Task 2 checkpoint (operator host probe on NAS) — deferred by operator 2026-10-03 to investigate qsvencc --psnr/--ssim frame loss
+Last session: 2026-10-24T17:07:01.540Z
+Stopped at: Completed 03-01-PLAN.md (Phase 3 complete, ready for verification)
 Resume file: .planning/phases/03-host-side-levers-firmware-xe-migration/03-01-PLAN.md

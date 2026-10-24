@@ -17,7 +17,7 @@ Requirements for this investigation milestone. Each maps to a roadmap phase.
 
 ### Host-Side Diagnosis
 
-- [ ] **DIAG-01**: Empirically determine and record what host-side changes are possible from this environment (kernel cmdline/modprobe, firmware, reboot, privilege level) — so blocked levers are reported honestly rather than silently skipped. (Complete — container + host capability matrix and GuC/HuC/DMC + firmware baseline in `03-EVIDENCE.md`; deferred levers in `03-RUNBOOK.md`, not applicable to the current Arc Pro B50 hardware.)
+- [x] **DIAG-01**: Empirically determine and record what host-side changes are possible from this environment (kernel cmdline/modprobe, firmware, reboot, privilege level) — so blocked levers are reported honestly rather than silently skipped. (Complete — container + host capability matrix and GuC/HuC/DMC + firmware baseline in `03-EVIDENCE.md`; deferred levers in `03-RUNBOOK.md`, not applicable to the current Arc Pro B50 hardware.)
 - [x] **DIAG-02**: Test the pure VA-API `av1_vaapi` encode path (bypassing oneVPL) as an in-container triangulation data point under the same 3-way concurrency, with the paired immune control. (Complete — detection-N=20: 0/20 corrupt on all three scenes, paired av1_qsv control clean 0/20, but only a PARTIAL trigger triad (B-frame reorder UNSUPPORTED on this Arc A380's LP-only AV1 entrypoint); recorded as "immunity NOT proven" per D-03. See `02-EVIDENCE.md`.)
 
 ### Source-Level Fix
@@ -69,7 +69,7 @@ Populated during roadmap creation — each requirement maps to exactly one phase
 | REPRO-03 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (report.csv `psnr_db`/`corrupt` columns; observed primary-hotspot signature ~12.96 dB mean in this environment, not the handoff's ~15.74 dB — see 01-EVIDENCE.md reconciliation note) |
 | REPRO-04 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (report.csv `control_clean` column, all 1; summary.txt "0/20" control line) |
 | REPRO-05 | Phase 1 | Complete — re-run evidence: `01-EVIDENCE.md` (summary.txt: 923/299 9/20 45.0% CI [0.258,0.658], 1129/299 8/20 40.0%, 928/96 0/20, N_requested=20/N_actual=20, detection-N vs validation-N statement) |
-| DIAG-01 | Phase 3 | Pending |
+| DIAG-01 | Phase 3 | Complete |
 | DIAG-02 | Phase 2 | Complete — `02-EVIDENCE.md` (detection-N=20: 0/20 corrupt all three scenes, paired av1_qsv control clean 0/20, D-02 triad PARTIAL (reorder UNSUPPORTED, P010/hw_decode ACTIVE), explicit SC#2 interpretation "immunity NOT proven", triangulated against 01-EVIDENCE.md qsvencc baseline, qsvencc cross-session-swap mechanism note stays OPEN) |
 | FIX-01 | Phase 02.1 | Complete — 02.1-EVIDENCE.md (FIX-v60: 0/60 + md5 180/180 S + bit-exact 6/6; patches/0001-*.patch) |
 | DIAG-03 | v2 (deferred) | Deferred |
