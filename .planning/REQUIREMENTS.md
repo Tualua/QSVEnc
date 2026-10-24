@@ -17,7 +17,7 @@ Requirements for this investigation milestone. Each maps to a roadmap phase.
 
 ### Host-Side Diagnosis
 
-- [ ] **DIAG-01**: Empirically determine and record what host-side changes are possible from this environment (kernel cmdline/modprobe, firmware, reboot, privilege level) — so blocked levers are reported honestly rather than silently skipped.
+- [ ] **DIAG-01**: Empirically determine and record what host-side changes are possible from this environment (kernel cmdline/modprobe, firmware, reboot, privilege level) — so blocked levers are reported honestly rather than silently skipped. (Complete — container + host capability matrix and GuC/HuC/DMC + firmware baseline in `03-EVIDENCE.md`; deferred levers in `03-RUNBOOK.md`, not applicable to the current Arc Pro B50 hardware.)
 - [x] **DIAG-02**: Test the pure VA-API `av1_vaapi` encode path (bypassing oneVPL) as an in-container triangulation data point under the same 3-way concurrency, with the paired immune control. (Complete — detection-N=20: 0/20 corrupt on all three scenes, paired av1_qsv control clean 0/20, but only a PARTIAL trigger triad (B-frame reorder UNSUPPORTED on this Arc A380's LP-only AV1 entrypoint); recorded as "immunity NOT proven" per D-03. See `02-EVIDENCE.md`.)
 
 ### Source-Level Fix
