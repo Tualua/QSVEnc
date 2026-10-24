@@ -149,5 +149,5 @@ Phases execute in numeric order: 1 → 2 → 2.1 → 3 → 4
 | 1. Harness, Control & Environment Fingerprinting | 2/2 | Complete   | 2026-07-23 |
 | 2. In-Container Triangulation — av1_vaapi | 5/5 | Complete   | 2026-07-23 |
 | 2.1. Source-Level Fix — qsvencc Surface Sync & Lifetime | 4/4 | Complete   | 2026-10-01 |
-| 3. Host-Side Levers — Firmware & Xe Migration | 1/1 | Complete   | 2026-10-24 |
+| 3. Host-Side Levers — Firmware & Xe Migration | 1/1 | Complete    | 2026-10-24 |
 | 4. Synthesis — Definition-of-Done Report | 0/TBD | Not started | - |

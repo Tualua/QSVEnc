@@ -4,9 +4,9 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3
 current_phase_name: Host-Side Levers — Firmware & Xe Migration
-status: ready_for_verification
-stopped_at: Completed 03-01-PLAN.md (Phase 3 complete, ready for verification)
-last_updated: "2026-10-24T17:07:07.621Z"
+status: ready_to_plan
+stopped_at: Phase 3 complete (1/1) — ready to discuss Phase 4
+last_updated: 2026-10-24T17:11:16.818Z
 last_activity: 2026-10-24 — 03-01 completed
 progress:
   total_phases: 5
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-23)
 
 **Core value:** Correctness is non-negotiable — no encoded frame may ever silently contain content from another concurrent session.
-**Current focus:** Phase 3 — Host-Side Levers — Firmware & Xe Migration
+**Current focus:** Phase 4 — synthesis — definition of done report
 
 ## Current Position
 
-Phase: 3 (Host-Side Levers — Firmware & Xe Migration) — EXECUTING
-Plan: 1 of 1
-Status: Phase 3 complete — ready for verification
-Last activity: 2026-10-24 — 03-01 completed (host probe, EVIDENCE, RUNBOOK)
+Phase: 4
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-24
 
 Progress: [██████████] 100%
 
@@ -38,7 +38,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 11
+- Total plans completed: 12
 - Average duration: - min
 - Total execution time: 0 hours
 
@@ -49,6 +49,7 @@ Progress: [██████████] 100%
 | 01 | 2 | - | - |
 | 02 | 5 | - | - |
 | 02.1 | 4 | - | - |
+| 3 | 1 | - | - |
 
 **Recent Trend:**
 
