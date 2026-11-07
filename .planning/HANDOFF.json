@@ -1,0 +1,234 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-11-07T08:06:31.739Z",
+  "phase": "3",
+  "phase_name": "Host-Side Levers — Firmware & Xe Migration",
+  "phase_dir": ".planning/phases/03-host-side-levers-firmware-xe-migration",
+  "plan": 1,
+  "task": 4,
+  "total_tasks": 7,
+  "status": "paused",
+  "stage": "uat",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "UAT Test 1: Проба на NAS отработала как read-only",
+      "status": "done",
+      "commit": ""
+    },
+    {
+      "id": 2,
+      "name": "UAT Test 2: Хостовая колонка матрицы DIAG-01 совпадает с ответами оператора",
+      "status": "done",
+      "commit": ""
+    },
+    {
+      "id": 3,
+      "name": "UAT Test 3: Базовая линия прошивок и железа соответствует NAS",
+      "status": "done",
+      "commit": ""
+    },
+    {
+      "id": 4,
+      "name": "UAT Test 4: Приватные данные не попали в git",
+      "status": "in_progress",
+      "progress": "checkpoint presented to operator, awaiting response"
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 5,
+      "name": "UAT Test 5: Смена A380 на B50 зафиксирована явно",
+      "status": "not_started"
+    },
+    {
+      "id": 6,
+      "name": "UAT Test 6: Runbook можно выполнить позже без повторного анализа",
+      "status": "not_started"
+    },
+    {
+      "id": 7,
+      "name": "UAT Test 7: Требование DIAG-01 закрыто в трассировке",
+      "status": "not_started"
+    },
+    {
+      "id": 8,
+      "name": "Complete UAT session: status complete, commit test(03): complete UAT, emit Next Up (/gsd:discuss-phase 4)",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Two unexplained 'Engine reset: engine_class=bcs' events on the host ~09:04 UTC 2026-10-24 (operator: 'Не знаю'); not investigated",
+      "type": "technical",
+      "workaround": "Record as open question in Phase 4 report"
+    },
+    {
+      "description": "Reproducibility of the original corruption on Arc Pro B50 / xe is unknown; all Phase 1-2.1 numbers were measured on A380 / i915",
+      "type": "technical",
+      "workaround": "Phase 4 report must state the hardware change and scope its claims to A380"
+    },
+    {
+      "description": "PROJECT.md (.planning/) and config.json have unrelated uncommitted operator edits; must never be staged by GSD commits",
+      "type": "technical",
+      "workaround": "Stage explicit paths only"
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "Answer UAT Test 4 checkpoint (pass / describe what's wrong), then Tests 5-7",
+      "context": "Phase 3 verify-work session at Test 4 of 7",
+      "blocking": true
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Roadmap: Investigation framed as 5 coarse phases (harness/control → av1_vaapi triangulation → host-side levers → workaround+gate → synthesis), not a code build.",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "Roadmap: Defense-in-depth gate design folded into Phase 4 (Workaround Recommendation) rather than a standalone phase, per coarse granularity.",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "Roadmap: GPU-exclusivity and single-variable-per-reboot discipline apply as standing operating rules across all phases (Pitfalls 1 and 3), not as one-time setup steps.",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 01]: Ran plan 01-02 entirely on the main working tree (no worktree isolation) per its hard execution_constraint, regenerating the git-ignored scratch/repro/ baseline the first execution's git worktree remove had destroyed — Prevents repeating the original evidence-loss failure mode; observed re-run baseline (923/299 9/20 45.0%, 1129/299 8/20 40.0%, 928/96 0/20, control 0/20) is now persisted both on disk and in a git-tracked 01-EVIDENCE.md snapshot",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: D-02 probe result on Arc A380: reorder UNSUPPORTED, P010 ACTIVE, HW-decode ACTIVE -> PARTIAL-TRIAD",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: Fixed broken ffprobe 'dts' field name in D-02 reorder probe (real field is pkt_dts); documented recipe would have produced a false ACTIVE reorder verdict on every frame",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: Extended run-batch-vaapi reference preflight to require both av1_vaapi self-references and av1_qsv control references before starting",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: Live 2-iteration smoke run confirmed Assumption A2 -- extra_hw_frames=64 holds under real 3-way concurrent contention, zero EXEC_FAILURE",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: Live detection-N=20 av1_vaapi batch (03): 0/20 corrupt all three scenes, control 0/20 clean, PARTIAL-TRIAD (reorder unsupported), gated verdict do-NOT-escalate, immunity NOT proven (D-08/D-03)",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: Full historical qsvencc content-origin cross-match (D-09/D-10) completed: 0/17 corrupt frames confirmed as cross-session content swaps (>=35 dB); best cross-scene PSNR 10.49-18.57 dB -- Phase 1's Mechanism-vs-symptom NOTE stays OPEN, not closed",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: av1_vaapi corrupt-path cross-match wired and verified N/A (0/20 corrupt this batch, PARTIAL-TRIAD, as expected)",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: 02-EVIDENCE.md confirmed all four av1_vaapi source files present/current before writing -- no harness re-run needed",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[2026-10-01]: Upstream QSVEnc 8.23–8.31 do not fix the bug — 8.31 (r4604) reproduces 923 7/20, 1129 6/20, 928 0/20, control 0/20, corrupt PSNR 12.83 dB. Evidence: .planning/research/UPSTREAM-8.31-RECHECK.md. Corroboration: rigaya/QSVEnc #308.",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[2026-10-01]: Direction chosen — new attempt to FIX via qsvencc source (Phase 02.1: surface sync & lifetime vs ffmpeg), executed before Phase 3. Rationale: ffmpeg is clean on the same kernel, so the \"kernel-only\" root-cause verdict is contradicted; prior \"source line exhausted\" covered only surface attributes/async-depth.",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[2026-10-01]: Operator communication language is Russian (config response_language: Russian).",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02]: Interpretation branch matched the REAL PARTIAL-TRIAD/0-20-clean data: immunity NOT proven (not the full-triad-clean or corrupt branch)",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02.1]: 02.1-01: instrument validated via T0b-stock fallback; md5 oracle (d01_md5) mandatory on every candidate because cand_screen is fail-open for a mid-stream drift mode",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02.1]: 02.1-01: X2 refutes M6 (tune/scenario inert); X3 --max-procfps 60 gives 0/20 tail corruption = timing-sensitive; pools DEC->VPP 23, VPP->ENC 20",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02.1]: 02.1-02: D-03 gate FAIL with tracing on (6/40 < 7, control 0/20) - traces not trusted; 02.1-03 uses D-05 coarse toggles of diag-T2 with tracing OFF after a fresh toggles-off positive control",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02.1]: 02.1-02: diag-T2 shows mid-stream drift mode 6/60 md5-D cells; md5 oracle mandatory on every batch",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02.1]: X9s_sham_sync_0of20_supports_timing_final_path_fix-path_X5_timing-workaround",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 02.1]: Upstream PR on 15cd6879 prepared as draft for discussion (pr/vpp-enc-sync 362bde63); upstream output identical to 8.31 references; single-session cost re-measured ~0 to -3 percent (earlier -9..-19 superseded); not pushed",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 03]: 03-01: GPU replaced (A380 on i915 -> Arc Pro B50 on xe) between probes; levers L1/L2 marked not applicable to current hardware, kept in runbook for an A380 reinstall",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 03]: 03-01: Operator policy: no restart of the NAS; CAP-REBOOT blocked on host (operator-declared); change abilities operator-declared (not tested)",
+      "rationale": "",
+      "phase": "4"
+    },
+    {
+      "decision": "[Phase 03]: Operator replaced Arc A380 (8086:56a5, i915) with Arc Pro B50 (8086:e212, xe) between the container probe (2026-10-03) and the host probe (2026-10-24); operator chose to continue Phase 3 on the new facts rather than re-plan",
+      "rationale": "Operator answer 'ОК' to option A; deferred levers L1/L2 recorded as not applicable to B50, i915 encode-path baseline valid only for A380",
+      "phase": "3"
+    },
+    {
+      "decision": "[Phase 03]: Host-owner policy: no reboot ('Нет.'), console exists but avoid needing it, container user has no sudo and will not get it; operator can and may make changes themself",
+      "rationale": "Verbatim operator answers 2026-10-24, recorded in scratch/host-levers/operator_answers.txt and 03-EVIDENCE.md",
+      "phase": "3"
+    },
+    {
+      "decision": "[Phase 03]: Operator-requested redaction of dnf OpenPGP key-import prompt lines (third-party repo URLs) from the EVIDENCE copy of the host probe; host login replaced by REDACTED-USER",
+      "rationale": "Privacy; auditor hardening note H-01 (filter firmware_upgrades capture) recorded but not applied",
+      "phase": "3"
+    },
+    {
+      "decision": "[Phase 03]: Did not auto-advance to Phase 4 after phase completion despite auto_advance=true",
+      "rationale": "GPU change affects Phase 4 report scope (reproducibility of original bug on B50 unknown); Phase 4 needs /gsd:discuss-phase first",
+      "phase": "3"
+    },
+    {
+      "decision": "[Phase 03]: UAT run in standard mode, not MVP user-story mode",
+      "rationale": "Phase 3 goal is not phrased as a user story; operator chose 'Обычный UAT'",
+      "phase": "3"
+    }
+  ],
+  "uncommitted_files": [],
+  "next_action": "Run /gsd:verify-work 3 — the session resumes from 03-UAT.md at Current Test 4 ('Приватные данные не попали в git'); re-present the Test 4 checkpoint via `bm-sdk query uat.render-checkpoint --file .planning/phases/03-host-side-levers-firmware-xe-migration/03-UAT.md --raw` and continue through Test 7, then complete the session and commit.",
+  "context_notes": "Phase 3 is fully executed (03-01-SUMMARY), verified (03-VERIFICATION passed 10/10), security-verified (03-SECURITY threats_open 0), ROADMAP ticked 2026-10-24, STATE advanced (next phase 4). Only the UAT walkthrough is unfinished: tests 1-3 passed, 4 awaiting answer, 5-7 pending. 03-UAT.md is committed as WIP in this pause commit. Response language: Russian for operator-facing text, English in plan artifacts. Privacy gate before every commit: `! git grep -qiwFf scratch/host-levers/.scan_terms -- .` (scan terms live only in git-ignored scratch/host-levers/.scan_terms, mode 600). After UAT: Phase 4 has no CONTEXT.md — recommend /gsd:discuss-phase 4; GPU change (A380→B50) must be folded into the Phase 4 report scope. Cosmetic leftover: CAP-XE label in 03-EVIDENCE.md still says 'A380 currently bound to i915'."
+}
