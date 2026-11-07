@@ -1,19 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 03-host-side-levers-firmware-xe-migration
 source: [03-01-SUMMARY.md]
 started: 2026-10-24T17:21:08Z
-updated: 2026-10-25T15:08:37Z
+updated: 2026-11-07T17:33:38Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
-number: 4
-name: Приватные данные не попали в git
-expected: |
-  В 03-EVIDENCE.md в разделе хостовой пробы и в ответах оператора нет вашего логина на NAS, пути /home/..., hostname, IP- или MAC-адресов. Вместо 13 строк dnf про GPG-ключи стоит одна строка-маркер об удалении по вашей просьбе, строки "Available upgrades" с версиями сохранены. В ответе (c) вместо логина стоит REDACTED-USER. Остальной текст пробы и ответов совпадает с оригиналом дословно.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -31,27 +26,28 @@ result: pass
 
 ### 4. Приватные данные не попали в git
 expected: В 03-EVIDENCE.md в разделе хостовой пробы и в ответах оператора нет вашего логина на NAS, пути /home/..., hostname, IP- или MAC-адресов. Вместо 13 строк dnf про GPG-ключи стоит одна строка-маркер об удалении по вашей просьбе, строки "Available upgrades" с версиями сохранены. В ответе (c) вместо логина стоит REDACTED-USER. Остальной текст пробы и ответов совпадает с оригиналом дословно.
-result: [pending]
+result: pass
 
 ### 5. Смена A380 на B50 зафиксирована явно
 expected: В 03-EVIDENCE.md есть отдельный раздел о замене GPU между пробами (A380/i915 3 октября, B50/xe 24 октября, перезагрузка хоста между ними), контейнерная колонка помечена датой 2026-10-03, а в 03-RUNBOOK.md рычаги L1 и L2 помечены как неприменимые к текущему железу с проверкой наличия устройства 0x56a5 перед запуском.
-result: [pending]
+result: pass
 
 ### 6. Runbook можно выполнить позже без повторного анализа
 expected: 03-RUNBOOK.md содержит для L1 (прошивка GuC/HuC) и L2 (i915 -> Xe): проверяемую гипотезу, предпосылки (root, окно перезагрузки, консоль), команды для Fedora 43 с пометкой "untested — verify on first use", подтверждение encode-path через gate против encode_path_baseline_i915.txt (с оговоркой, что baseline валиден только для A380), процедуру измерения со стоковым 8.31 и md5-оракулом, откат и аварийный откат. Текст понятен и достаточен, чтобы стартовать без чтения истории проекта.
-result: [pending]
+result: skipped
+reason: Operator: levers L1/L2 are not applicable on the Arc Pro B50 (A380 removed); runbook not read. Operator instead requested a live reproduction attempt on the B50 (scratch/cand-B50-stock831).
 
 ### 7. Требование DIAG-01 закрыто в трассировке
 expected: В .planning/REQUIREMENTS.md строка DIAG-01 отмечена [x] со статусом Complete и ссылается на 03-EVIDENCE.md и 03-RUNBOOK.md; в ROADMAP.md фаза 3 отмечена завершённой 2026-10-24.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 7
-passed: 3
+passed: 6
 issues: 0
-pending: 4
-skipped: 0
+pending: 0
+skipped: 1
 blocked: 0
 
 ## Gaps
