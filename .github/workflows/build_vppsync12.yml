@@ -1,0 +1,187 @@
+name: Build QSVEncC 8.37 + open-GOP trim fix + experimental AV1 chroma delta-q (unofficial)
+
+# Unofficial build of rigaya/QSVEnc 8.37 (tag 8.37). 8.37 already contains all fixes from the earlier vppsync builds
+# (#319, #320, #322, #326, #328, #330, #332, #333) and rigaya's own fix for the concurrent-encode frame corruption
+# (#308, in 8.32+: the VPP output surface is synced before it is handed to the encoder). On top of it:
+#  - fix --trim after --seek shifted by the open-GOP leading frames (fork only, not accepted upstream)
+#  - EXPERIMENTAL: --av1-chroma-delta-q (needs the patched vpl-gpu-rt attached to the release)
+# Same build steps and the same public build images as upstream build_packages.yml.
+# The patched vpl-gpu-rt archives are copied from the previous fork release (RUNTIME_SOURCE_TAG) after a checksum
+# check against the sums pinned below, so the release is complete without a manual upload.
+
+on:
+  push:
+    branches:
+      - vppsync12-837
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PACKAGE_VERSION: 8.37+vppsync12
+  RPM_RELEASE: 1.vppsync12
+  RELEASE_TAG: 8.37-vppsync12
+  RUNTIME_SOURCE_TAG: 8.33-vppsync11
+  BASE_IMAGE_REPO: ghcr.io/rigaya/qsvenc-build
+  FFMPEG_PREFIX: /opt/build_scripts/ffmpeg_dll/build_dll/x64/build
+  VMAF_PREFIX: /opt/build_scripts/ffmpeg_dll/x64/build
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerimg: ubuntu2004
+            pkgtype: deb
+          - dockerimg: fedora41
+            pkgtype: rpm
+    name: Build ${{ matrix.dockerimg }} ${{ matrix.pkgtype }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Show patches
+        run: git log --oneline -6
+
+      - name: Check source version
+        run: |
+          set -eu
+          SRC_VERSION="$(./scripts/get-version.sh)"
+          echo "source version: ${SRC_VERSION}"
+          test "${SRC_VERSION}" = "8.37"
+
+      - name: Mark rpm release (CI-only edit)
+        run: |
+          set -eu
+          sed -i "s/^Release:.*/Release:    ${RPM_RELEASE}/" build_pkg/template.spec
+          grep -n "^Release:" build_pkg/template.spec
+
+      - name: Pull base image
+        run: docker pull ${BASE_IMAGE_REPO}:${{ matrix.dockerimg }}
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          docker run -dit --rm -v ${{ github.workspace }}:/work -v ${{ github.workspace }}/output:/output \
+            -e "PACKAGE_VERSION=${PACKAGE_VERSION}" \
+            -u "$(id -u):$(id -g)" --workdir /work --name build_pkg ${BASE_IMAGE_REPO}:${{ matrix.dockerimg }}
+          docker exec build_pkg bash -lc '
+            set -e
+            VMAFPKG="${{ env.VMAF_PREFIX }}/lib/pkgconfig"
+            FFPKG="${{ env.FFMPEG_PREFIX }}/lib/pkgconfig:${{ env.FFMPEG_PREFIX }}/lib/x86_64-linux-gnu/pkgconfig"
+            export PKG_CONFIG_PATH="${VMAFPKG}:${FFPKG}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+            meson setup ./build . --buildtype=release -Db_lto=true -Dlibass_static=true -Denable_vmaf=enabled -Dlibvmaf_static=true -Denable_libvship=disabled -Dcpp_args="['\''-I/work/AviSynthPlus/avs_core/include'\'','\''-I/work/vapoursynth/include'\'']"
+            grep -F "#define LIBVMAF_STATIC_LINK 1" ./build/rgy_config.h
+          '
+          docker exec build_pkg bash -lc "meson compile -C ./build -j$(nproc)"
+          docker exec build_pkg meson install -C ./build --destdir /tmp/qsvencc-install
+          docker exec build_pkg cp /tmp/qsvencc-install/usr/local/bin/qsvencc ./qsvencc
+          docker exec build_pkg bash -lc '
+            set -e
+            ldd_output=$(ldd -r ./qsvencc 2>&1) || { echo "$ldd_output"; exit 1; }
+            echo "$ldd_output"
+            if echo "$ldd_output" | grep -E "not found|undefined symbol"; then
+              exit 1
+            fi
+          '
+          docker exec build_pkg ./qsvencc --version
+          docker exec build_pkg ./check_options.py -exe ./qsvencc
+          docker exec build_pkg ./qsvencc --check-cmd-parse
+          docker exec build_pkg ./build_${{ matrix.pkgtype }}.sh
+          docker exec build_pkg bash -lc "cp -v ./*.${{ matrix.pkgtype }} /output/"
+          docker stop build_pkg || true
+          cd output
+          for f in *.${{ matrix.pkgtype }}; do mv -v "$f" "$(echo "$f" | sed "s/\.${{ matrix.pkgtype }}\$/_${{ matrix.dockerimg }}.${{ matrix.pkgtype }}/")"; done
+          ls -l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qsvencc_${{ matrix.dockerimg }}_${{ matrix.pkgtype }}
+          path: output/*.${{ matrix.pkgtype }}
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * | tee SHA256SUMS
+
+      - name: Attach patched vpl-gpu-rt from the previous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          mkdir runtime
+          gh release download "$RUNTIME_SOURCE_TAG" --dir runtime \
+            --pattern 'vpl-gpu-rt-*-av1auxdata.tar.gz' --pattern 'SHA256SUMS.runtime'
+          cd runtime
+          # pinned: the archives must be byte-identical to the ones first published with 8.32-vppsync9
+          sha256sum -c - <<'EOF'
+          e970d9111db49ecd0105e6ee7337d8939ec701540c938813a710b05a9a45d23f  vpl-gpu-rt-26.2.2-av1auxdata.tar.gz
+          054b7887dfa88711bfcf9290536b9676b9d0d801b8fd39f2eb39b747a2de0a35  vpl-gpu-rt-26.3.2-av1auxdata.tar.gz
+          EOF
+          sha256sum -c SHA256SUMS.runtime
+          cp -v vpl-gpu-rt-*-av1auxdata.tar.gz SHA256SUMS.runtime ../dist/
+          ls -l ../dist
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          cat > notes.md <<'EOF'
+          **Unofficial build — not from rigaya.** QSVEncC 8.37 (rigaya/QSVEnc tag `8.37`).
+          8.37 already contains every fix from the earlier vppsync builds: metric sync (#319), flush error
+          propagation (#320), SSIM for non-mod-4 sizes (#322), `--seek` on TS/MP4 (#326), `--seekto` on TS and audio (#328),
+          `--trim` range inside the offset (#330), no 5 s wait on exit (#332), the VA decode-error notification that stopped
+          the OpenCL path (#333), and rigaya's own fix for the concurrent-encode frame corruption (#308, since 8.32).
+
+          Upstream changes since the previous fork build (8.33-vppsync11): 8.34 improves stability when the encoder is busy;
+          8.35 speeds up `--vpp-kfm` / `--vpp-rtgmc`, lowers CPU use of `--opencl-task-threads 2`, fixes QSV on Linux with the
+          iHD driver in a non-standard location, `--avhw` with VA-API selected, an abnormal exit on interrupt and several
+          `--vpp-kfm` stalls; 8.36 fixes old frames mixed in with `--vpp-kfm`, moves `--vpp-onnx` pre/post processing to OpenCL
+          and adds `--vpp-vhs-restore`; 8.37 fixes a hw decode error with `--adapt-resolution` on Sandy/Ivy Bridge.
+
+          On top of 8.37 this build adds (both patches unchanged since 8.33-vppsync11):
+
+          1. **Fix `--trim` after `--seek` on open-GOP HEVC** (fork only). The leading frames of the CRA (RASL) were counted
+             into the trim offset, so `--trim a:b` after `--seek` selected frames N frames too early. Also `--avsw` drops
+             decodable leading frames (RADL) at the start like `--avhw`, so both select the same frames.
+          2. **Experimental: `--av1-chroma-delta-q <int>` or `dc=<int>,ac=<int>`** (AV1 only). Sets the U/V quantizer delta
+             (-63..63, negative = finer chroma). Small low-saturation colored details lose much less color at a small
+             bitrate cost (4K HDR10 test scene, `--icq 23`: -32 gives +15 % bitrate and the chroma quality of `--icq 18`,
+             which costs +474 %). It needs the **patched oneVPL GPU runtime** attached to this release
+             (`vpl-gpu-rt-*-av1auxdata.tar.gz`, same archives as 8.33-vppsync11, see the README inside); with the stock
+             runtime the encoder fails to initialize and qsvencc prints a hint. Without the option nothing changes.
+
+          - `*_ubuntu2004.deb` — Ubuntu 20.04 / 22.04 / 24.04, Debian 11+ (ffmpeg linked statically). Needs the Intel
+            media driver and oneVPL GPU runtime (`intel-media-va-driver-non-free`, `libmfx-gen1.2` or `libmfxgen1`).
+          - `*_fedora41.rpm` — Fedora 41+.
+
+          Package version `8.37+vppsync12` (deb) / `8.37-1.vppsync12` (rpm), so it is newer than the official 8.37 package and
+          an official 8.38 replaces it. Verify downloads with `SHA256SUMS` (packages) and `SHA256SUMS.runtime` (runtime archives).
+          EOF
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --target "$GITHUB_SHA" --prerelease \
+              --title "QSVEncC 8.37 + open-GOP trim fix + AV1 chroma delta-q (unofficial, $RELEASE_TAG)" --notes-file notes.md
+          fi
