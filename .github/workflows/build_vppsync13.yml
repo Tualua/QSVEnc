@@ -11,8 +11,13 @@ name: Build QSVEncC 8.37 + FFmpeg 9.0.2 + open-GOP trim fix + experimental AV1 c
 # branch with FFMPEG_VERSION=9.0.2). Build steps are otherwise identical to upstream build_packages.yml.
 # The patched vpl-gpu-rt archives are copied from the previous fork release (RUNTIME_SOURCE_TAG) after a checksum
 # check against the sums pinned below, so the release is complete without a manual upload.
+# push trigger: GitHub does not register a workflow_dispatch-only workflow that exists on a non-default branch only,
+# so the branch push is what starts the build (the base images must already exist).
 
 on:
+  push:
+    branches:
+      - vppsync13-837
   workflow_dispatch:
 
 permissions:
