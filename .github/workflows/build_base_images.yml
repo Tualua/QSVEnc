@@ -19,9 +19,10 @@ jobs:
 
     env:
       DOCKER_FILE: docker/docker_${{ matrix.dockerimg }}
-      IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/qsvenc-build
+      IMAGE_REPO: ghcr.io/tualua/qsvenc-build
       FFMPEG_DLL_REPO: https://github.com/rigaya/build_scripts.git
       FFMPEG_DLL_REF: master
+      FFMPEG_VERSION: 9.0.2
 
     steps:
       - name: Checkout
@@ -50,6 +51,7 @@ jobs:
           build-args: |
             FFMPEG_DLL_REPO=${{ env.FFMPEG_DLL_REPO }}
             FFMPEG_DLL_REF=${{ env.FFMPEG_DLL_REF }}
+            FFMPEG_VERSION=${{ env.FFMPEG_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

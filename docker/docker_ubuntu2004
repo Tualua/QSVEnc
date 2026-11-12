@@ -3,6 +3,9 @@ FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG FFMPEG_DLL_REPO=https://github.com/rigaya/build_scripts.git
 ARG FFMPEG_DLL_REF=master
+# FFmpeg 9.0.2 以降が必要: 9.0.1 の vc1 デコーダは Simple/Main の最後のMBが残り1bitで到達すると
+# B フレームを AVERROR_INVALIDDATA で落とす (FFmpeg b7401b97 で修正)。build_scripts の VER_FFMPEG を差し替える。
+ARG FFMPEG_VERSION=9.0.2
 ARG BUILD_SCRIPTS_DIR=/opt/build_scripts
 ARG FFMPEG_PREFIX=/opt/build_scripts/ffmpeg_dll/build_dll/x64/build
 ARG VMAF_PREFIX=/opt/build_scripts/ffmpeg_dll/x64/build
@@ -103,6 +106,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-ini
 RUN git clone --depth 1 --branch ${FFMPEG_DLL_REF} ${FFMPEG_DLL_REPO} ${BUILD_SCRIPTS_DIR} \
     && cd ${BUILD_SCRIPTS_DIR}/ffmpeg_dll \
     && sed -i 's/\r$//' ./build_ffmpeg_dll.sh \
+    && sed -i "s/^VER_FFMPEG=.*/VER_FFMPEG=\"${FFMPEG_VERSION}\"/" ./build_ffmpeg_dll.sh \
+    && grep -F "VER_FFMPEG=\"${FFMPEG_VERSION}\"" ./build_ffmpeg_dll.sh \
     && sed -i 's/\r$//' ./build_libvmaf.sh \
     && export NUMBER_OF_PROCESSORS="$(nproc)" \
     && bash ./build_ffmpeg_dll.sh --skip-src-archive --disable-pgo \
@@ -110,6 +115,9 @@ RUN git clone --depth 1 --branch ${FFMPEG_DLL_REF} ${FFMPEG_DLL_REPO} ${BUILD_SC
     && grep -F '#define CONFIG_AV1_VAAPI_HWACCEL 1' ./build_dll/x64/ffmpeg/config_components.h \
     && bash ./build_libvmaf.sh --skip-src-archive --disable-cuda \
     && test -f "${FFMPEG_PREFIX}/lib/pkgconfig/libavutil.pc" \
+    && FFREL="$(find . -maxdepth 4 -path "*ffmpeg/RELEASE" | head -1)" \
+    && test -n "${FFREL}" && test "$(tr -d '[:space:]' < "${FFREL}")" = "${FFMPEG_VERSION}" \
+    && echo "${FFMPEG_VERSION}" > "${FFMPEG_PREFIX}/FFMPEG_VERSION" \
     && test -f "${VMAF_PREFIX}/lib/pkgconfig/libvmaf.pc" \
     && test -f "${VMAF_PREFIX}/lib/libvmaf.a" \
     && test -f "${VMAF_PREFIX}/include/libvmaf/libvmaf.h" \
